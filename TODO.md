@@ -17,7 +17,7 @@ tracks build status and the ideas we've floated on top of it.
 ### Up next (core sitemap, from the original brief)
 - [x] **Services page** — detailed breakdown per repair type, with mock pricing/turnaround per category and a jump-nav
 - [x] **Estimate page** — 4-step wizard (device → issue → drop-off → contact) with a mock instant estimate result; folds in the quote calculator (§2.3) and email capture (§2.4) brainstorm items
-- [ ] **Contact page** — Arnold + Ballwin location cards, embedded map, live/today's hours; decide how (or whether) to surface Affton
+- [x] **Contact page** — Arnold + Ballwin cards with embedded map, live open/closed badge, and directions link. Affton: no real address/phone exists for it in the brief, so rather than invent one it gets an honest note pointing to the two real shops. Hours are a placeholder (`src/lib/locations.ts`) pending the shop's real schedule. Note: Google Maps embeds don't load inside this sandbox's outbound proxy (`ERR_TUNNEL_CONNECTION_FAILED` on `maps.google.com`) — that's a sandbox network restriction, not a code issue; verify once on Vercel's real network.
 - [ ] **FAQ page** — accordion component, reusing the real Q&A content already in the brief
 - [ ] Polish pass — animation pass with Framer Motion, responsive QA on all pages, favicon/OG image, meta per page
 
