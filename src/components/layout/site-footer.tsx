@@ -1,18 +1,6 @@
 import Link from "next/link";
 import { Smartphone, MapPin, Phone } from "lucide-react";
-
-const LOCATIONS = [
-  {
-    name: "Arnold",
-    phone: "636-333-3324",
-    address: "141 Arnold Crossroads Center, Arnold, MO",
-  },
-  {
-    name: "Ballwin",
-    phone: "636-256-1702",
-    address: "14748 Manchester Rd, Ballwin, MO",
-  },
-];
+import { LOCATIONS } from "@/lib/locations";
 
 const SITEMAP = [
   { href: "/", label: "Home" },
@@ -62,7 +50,7 @@ export function SiteFooter() {
           </h3>
           <div className="mt-4 grid gap-5 sm:grid-cols-2">
             {LOCATIONS.map((loc) => (
-              <div key={loc.name} className="text-sm">
+              <div key={loc.slug} className="text-sm">
                 <p className="font-semibold text-white">{loc.name}</p>
                 <p className="mt-1 flex items-start gap-2">
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
