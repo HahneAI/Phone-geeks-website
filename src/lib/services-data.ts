@@ -19,6 +19,8 @@ export interface ServiceCategory {
   slug: string;
   icon: LucideIcon;
   title: string;
+  /** Natural-language name for use in a sentence, e.g. "your {shortLabel}" */
+  shortLabel: string;
   description: string;
   repairs: RepairItem[];
   note?: string;
@@ -29,6 +31,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     slug: "smartphone",
     icon: Smartphone,
     title: "Smart Phone Repair",
+    shortLabel: "phone",
     description:
       "Cracked screens, dead batteries, and everything in between — most phones fixed same day.",
     repairs: [
@@ -44,6 +47,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     slug: "computer",
     icon: Laptop,
     title: "Macbook & Computer Repair",
+    shortLabel: "computer",
     description:
       "Hardware and software repair for Mac and Windows laptops and desktops.",
     repairs: [
@@ -59,6 +63,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     slug: "tablet",
     icon: Tablet,
     title: "Tablet & iPad Repair",
+    shortLabel: "tablet",
     description: "Screen, battery, and charging repairs for iPads and Android tablets.",
     repairs: [
       { name: "Screen Repair", priceRange: "$89 – $229", turnaround: "Same day" },
@@ -70,6 +75,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     slug: "console",
     icon: Gamepad2,
     title: "Game Console Repair",
+    shortLabel: "console",
     description: "PlayStation, Xbox, Switch, and yes — we still fix your old PSP, DS, and Wii U.",
     repairs: [
       { name: "HDMI Port Repair", priceRange: "$49 – $99", turnaround: "1–2 days" },
@@ -82,6 +88,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     slug: "buyback",
     icon: Recycle,
     title: "Gadget Buyback & Recycling",
+    shortLabel: "device",
     description:
       "Trade in your old device for cash on the spot, or drop it off for responsible e-waste recycling — free, no purchase necessary.",
     repairs: [],
@@ -90,6 +97,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     slug: "retail",
     icon: ShoppingBag,
     title: "Retail",
+    shortLabel: "device",
     description:
       "Refurbished phones and accessories, tested in-house and backed by our 60-day return window.",
     repairs: [],
@@ -98,6 +106,7 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     slug: "consult",
     icon: Users,
     title: "Consult a Geek",
+    shortLabel: "device",
     description:
       "Not sure what's wrong with your device? Walk in — we'll diagnose it in person, free, no appointment needed.",
     repairs: [],
