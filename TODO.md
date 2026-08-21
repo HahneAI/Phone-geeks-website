@@ -70,6 +70,26 @@ than the Estimate wizard — no contact capture here, it hands off to
 - Still open: this *is* the "free value" hook — the result screen is the
   natural spot to eventually offer "email me this diagnosis," which would
   connect it to the email capture flow (§2.4).
+- **Now connected to the Estimate flow.** Finishing the diagnostic quiz
+  persists the result to `localStorage` (`src/lib/diagnostic-storage.ts`,
+  key `pg_last_diagnosis`) — only a *finished* run is saved, never partial
+  quiz progress. Landing on `/estimate` with a valid saved diagnosis shows
+  a yes/no prompt ("Use your recent diagnostic?"); saying yes prefills the
+  device + issue and skips straight to the drop-off step, saying no clears
+  it and shows the normal picker.
+  - Deliberately localStorage, not sessionStorage: persists across tab
+    navigation and is shared across every tab of the same origin, not
+    scoped to one tab.
+  - Cross-tab live pickup, not just persistence: reading uses
+    `useSyncExternalStore` subscribed to the browser's native `storage`
+    event, so if a diagnostic finishes in *another* already-open tab while
+    the Estimate page's first step is showing in this one, the prompt
+    appears without a reload. Verified with real multi-tab browser
+    automation, not just single-tab persistence.
+  - The wizard re-derives the actual price/turnaround from
+    `services-data.ts` at accept-time rather than trusting the stored
+    snapshot, so a stale localStorage entry can never show outdated
+    pricing.
 
 ### 2.3 Interactive Pricing/Quote Calculator (from original brief) — done
 - Device category → issue → instant estimated price range + turnaround time.

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { scrollPastSticky } from "@/lib/utils";
 import { DIAGNOSE_CATEGORIES, SYMPTOMS_BY_CATEGORY } from "@/lib/diagnose-data";
+import { saveDiagnosis } from "@/lib/diagnostic-storage";
 
 type Step = "device" | "symptom" | "result";
 
@@ -28,6 +29,23 @@ export function DiagnosticQuiz() {
   const symptoms = categorySlug ? SYMPTOMS_BY_CATEGORY[categorySlug] : [];
   const symptom = symptomIndex !== null ? symptoms[symptomIndex] : null;
   const repair = category?.repairs.find((r) => r.name === symptom?.repairName) ?? null;
+
+  // Persist only a finished run — fires once the result screen actually
+  // has a resolved category/symptom/repair triple.
+  useEffect(() => {
+    if (step === "result" && category && symptom && repair) {
+      saveDiagnosis({
+        categorySlug: category.slug,
+        categoryTitle: category.title,
+        categoryShortLabel: category.shortLabel,
+        symptomLabel: symptom.label,
+        repairName: repair.name,
+        priceRange: repair.priceRange,
+        turnaround: repair.turnaround,
+        reasoning: symptom.reasoning,
+      });
+    }
+  }, [step, category, symptom, repair]);
 
   function reset() {
     setStep("device");
@@ -128,6 +146,11 @@ export function DiagnosticQuiz() {
             <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-blue" />
             A geek will always confirm this in person before any work
             starts — this is a starting point, not a final quote.
+          </p>
+
+          <p className="mt-3 text-xs text-muted-foreground/70">
+            Saved on this device — head to the Estimate page and
+            we&rsquo;ll offer to start your quote from this diagnosis.
           </p>
 
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
