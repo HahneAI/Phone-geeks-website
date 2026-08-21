@@ -37,9 +37,14 @@ export function Warranty() {
 
         <div className="mt-10 grid gap-6 sm:grid-cols-3">
           {ITEMS.map((item) => (
-            <div key={item.title} className="rounded-2xl bg-white p-6 shadow-sm">
-              <item.icon className="h-6 w-6 text-brand-red" strokeWidth={2} />
-              <p className="mt-4 text-2xl font-bold text-brand-navy">
+            <div
+              key={item.title}
+              className="flex flex-col items-center rounded-2xl border-2 border-transparent bg-white p-8 text-center shadow-sm transition-all hover:-translate-y-1.5 hover:border-brand-red/50 hover:shadow-xl"
+            >
+              <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-red/10 text-brand-red">
+                <item.icon className="h-7 w-7" strokeWidth={2} />
+              </span>
+              <p className="mt-5 text-2xl font-bold text-brand-navy">
                 {item.title}
               </p>
               <p className="text-sm font-semibold text-brand-blue">

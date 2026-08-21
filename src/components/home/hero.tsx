@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Clock, ShieldCheck, Star } from "lucide-react";
+import { Clock, ShieldCheck, Star, Smartphone } from "lucide-react";
 
 export function Hero() {
   return (
@@ -11,7 +11,14 @@ export function Hero() {
             "radial-gradient(circle at 15% 20%, rgba(37,99,235,0.35), transparent 40%), radial-gradient(circle at 85% 0%, rgba(224,51,44,0.25), transparent 45%)",
         }}
       />
-      <div className="relative mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
+
+      {/* Decorative device silhouette — fills the hero's empty upper area instead of bare gradient */}
+      <Smartphone
+        className="pointer-events-none absolute -right-10 -top-14 h-56 w-56 -rotate-12 text-white/[0.06] sm:-right-6 sm:-top-16 sm:h-72 sm:w-72 lg:right-8 lg:top-8 lg:h-96 lg:w-96"
+        strokeWidth={1}
+      />
+
+      <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6 sm:pb-24 sm:pt-16 lg:pb-28 lg:pt-20">
         <div className="max-w-2xl">
           <span className="inline-flex items-center rounded-full border border-white/20 bg-white/5 px-3 py-1 text-xs font-medium tracking-wide text-white/80">
             St. Louis &middot; Family-run since 2016
