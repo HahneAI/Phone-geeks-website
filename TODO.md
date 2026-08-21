@@ -50,18 +50,26 @@ rather than a real live system.
 - Build note: pure client-side state + a small mock dataset keyed by ticket
   number. No backend needed.
 
-### 2.2 Free Diagnostic / "What's Wrong With My Device?" Quiz Flow
-Positioned as the free-value hook mentioned below — a quick, guided
-triage tool instead of a blank contact form.
-- 3–4 step flow: **Device type → Symptom(s) → Device age/model** → result
-  screen with a likely-issue summary, a ballpark price range, and a clear
-  CTA into the real estimate flow.
-- This *is* the "free value" thing — it gives the visitor something useful
-  (an honest-feeling diagnosis) before ever asking for contact info, which
-  is exactly the kind of small-business trust move Phone Geeks already
-  leans on ("Consult a Geek," free in-person diagnosis).
-- Doubles as lead-gen: the result screen is the natural spot to offer
-  "email me this estimate" → feeds the email capture flow (§2.4).
+### 2.2 Free Diagnostic / "What's Wrong With My Device?" Quiz Flow — skeleton shipped
+Shipped at `/diagnose`, linked from the footer sitemap and cross-linked
+from the Estimate page ("Not sure what's even wrong? Try our free
+diagnostic first"). Symptom-first flow (device → plain-language symptom →
+likely diagnosis + price/turnaround), deliberately kept a step simpler
+than the Estimate wizard — no contact capture here, it hands off to
+`/estimate` for that instead of duplicating it.
+- Symptom → repair mapping lives in `src/lib/diagnose-data.ts`, referencing
+  repair names from `services-data.ts` rather than duplicating
+  price/turnaround data.
+- Explicitly framed in the UI (not just this doc) as a rule-based skeleton:
+  a callout right under the hero states plainly that this fixed decision
+  tree is the seed for training a real conversational AI agent on Phone
+  Geeks' own repair history and how the technicians actually triage in
+  person — ties directly to §4.1 (AI phone agent) and §4.2 (SMS/chat
+  follow-up) below; this diagnostic flow is effectively the chat-based
+  sibling of that phone agent idea.
+- Still open: this *is* the "free value" hook — the result screen is the
+  natural spot to eventually offer "email me this diagnosis," which would
+  connect it to the email capture flow (§2.4).
 
 ### 2.3 Interactive Pricing/Quote Calculator (from original brief) — done
 - Device category → issue → instant estimated price range + turnaround time.

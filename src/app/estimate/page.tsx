@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { EstimateHero } from "@/components/estimate/estimate-hero";
 import { QuoteWizard } from "@/components/estimate/quote-wizard";
 
@@ -14,6 +15,13 @@ export default function EstimatePage() {
       <EstimateHero />
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         <QuoteWizard />
+        <p className="mt-8 text-center text-sm text-muted-foreground">
+          Not sure what&rsquo;s even wrong?{" "}
+          <Link href="/diagnose" className="font-medium text-brand-red hover:underline">
+            Try our free diagnostic
+          </Link>{" "}
+          first.
+        </p>
       </div>
     </>
   );
