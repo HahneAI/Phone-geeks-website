@@ -6,6 +6,8 @@ const SITEMAP = [
   { href: "/", label: "Home" },
   { href: "/services", label: "Services" },
   { href: "/estimate", label: "Get an Estimate" },
+  { href: "/diagnose", label: "Free Diagnostic" },
+  { href: "/track", label: "Track Repair" },
   { href: "/faq", label: "FAQ" },
   { href: "/contact", label: "Locations" },
 ];

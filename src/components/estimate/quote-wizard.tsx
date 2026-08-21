@@ -4,12 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { useForm, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Clock, Mail, PackageCheck, Store } from "lucide-react";
+import { ArrowLeft, Clock, Mail, PackageCheck, Sparkles, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn, scrollPastSticky } from "@/lib/utils";
 import { SERVICE_CATEGORIES, type RepairItem } from "@/lib/services-data";
 import { LOCATIONS } from "@/lib/locations";
+import {
+  clearDiagnosis,
+  useStoredDiagnosis,
+  type StoredDiagnosis,
+} from "@/lib/diagnostic-storage";
 import { StepProgress } from "./step-progress";
 
 const DEVICE_CATEGORIES = SERVICE_CATEGORIES.filter(
@@ -32,12 +37,22 @@ type ContactValues = z.infer<typeof contactSchema>;
 
 type Step = "device" | "issue" | "location" | "contact" | "result";
 
+/** True if a stored diagnosis still points at a real category + repair. */
+function isDiagnosisStillValid(diagnosis: StoredDiagnosis) {
+  const category = DEVICE_CATEGORIES.find((c) => c.slug === diagnosis.categorySlug);
+  return Boolean(category?.repairs.some((r) => r.name === diagnosis.repairName));
+}
+
 export function QuoteWizard() {
   const [step, setStep] = useState<Step>("device");
   const [deviceSlug, setDeviceSlug] = useState<string | null>(null);
   const [issue, setIssue] = useState<RepairItem | null>(null);
   const [locationSlug, setLocationSlug] = useState<string | null>(null);
   const [contact, setContact] = useState<ContactValues | null>(null);
+  // User has actively said "no" (or already used it) this session — keeps
+  // the prompt from popping back up if it's dismissed but a cross-tab
+  // "storage" event or a stale read races in right after.
+  const [dismissedDiagnosis, setDismissedDiagnosis] = useState(false);
 
   const cardRef = useRef<HTMLDivElement>(null);
   const prevStepRef = useRef<Step | null>(null);
@@ -53,6 +68,21 @@ export function QuoteWizard() {
     }
     prevStepRef.current = step;
   }, [step]);
+
+  // Live-reads localStorage via useSyncExternalStore rather than an effect
+  // + setState: it renders the (always-null) server snapshot during
+  // hydration to avoid a mismatch, then synchronously swaps to the real
+  // client value right after — no flash of the "device" step, and no
+  // "don't setState in an effect" issue since there's no effect involved.
+  // It also picks up a diagnostic finished in *another* tab live, since
+  // the browser's "storage" event fires in every tab but the one that
+  // wrote the value.
+  const diagnosis = useStoredDiagnosis();
+  const showDiagnosisPrompt =
+    step === "device" &&
+    !dismissedDiagnosis &&
+    diagnosis !== null &&
+    isDiagnosisStillValid(diagnosis);
 
   const {
     register,
@@ -77,18 +107,65 @@ export function QuoteWizard() {
     setIssue(null);
     setLocationSlug(null);
     setContact(null);
+    setDismissedDiagnosis(false);
     resetForm();
+  }
+
+  function acceptDiagnosis() {
+    if (!diagnosis) return;
+    const category = DEVICE_CATEGORIES.find((c) => c.slug === diagnosis.categorySlug);
+    const matchedIssue = category?.repairs.find((r) => r.name === diagnosis.repairName);
+    if (!category || !matchedIssue) return;
+    setDeviceSlug(category.slug);
+    setIssue(matchedIssue);
+    clearDiagnosis();
+    setDismissedDiagnosis(true);
+    setStep("location");
+  }
+
+  function declineDiagnosis() {
+    clearDiagnosis();
+    setDismissedDiagnosis(true);
   }
 
   return (
     <Card ref={cardRef} className="mx-auto max-w-2xl p-6 sm:p-10">
-      {step !== "result" && (
+      {step !== "result" && !showDiagnosisPrompt && (
         <div className="mb-10">
           <StepProgress current={stepNumber} />
         </div>
       )}
 
-      {step === "device" && (
+      {showDiagnosisPrompt && diagnosis && (
+        <div className="text-center">
+          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-blue-light text-brand-blue">
+            <Sparkles className="h-6 w-6" strokeWidth={2} />
+          </span>
+          <h2 className="mt-4 text-xl font-bold text-brand-navy">
+            Use your recent diagnostic?
+          </h2>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
+            You ran our free diagnostic and got a likely match of{" "}
+            <span className="font-medium text-brand-navy">
+              {diagnosis.repairName}
+            </span>{" "}
+            for your {diagnosis.categoryShortLabel}. Want to start this
+            quote from there instead of picking again?
+          </p>
+          <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+            <Button onClick={acceptDiagnosis}>Yes, use it</Button>
+            <Button
+              variant="ghost"
+              onClick={declineDiagnosis}
+              className="border border-border"
+            >
+              No, start fresh
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === "device" && !showDiagnosisPrompt && (
         <div>
           <h2 className="text-xl font-bold text-brand-navy">
             What needs fixing?

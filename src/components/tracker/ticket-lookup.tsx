@@ -1,0 +1,134 @@
+"use client";
+
+import { useState, type FormEvent } from "react";
+import { Search, MapPin, Bell, CheckCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { DEMO_TICKETS, TRACKER_STEPS } from "@/lib/tracker-data";
+import { RepairStepper } from "./repair-stepper";
+
+export function TicketLookup() {
+  const [query, setQuery] = useState("");
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [notifyMe, setNotifyMe] = useState(false);
+
+  const ticket = DEMO_TICKETS.find(
+    (t) => t.id.toLowerCase() === activeId?.toLowerCase()
+  );
+
+  function lookup(id: string) {
+    const trimmed = id.trim();
+    if (!trimmed) return;
+    const found = DEMO_TICKETS.some(
+      (t) => t.id.toLowerCase() === trimmed.toLowerCase()
+    );
+    setActiveId(trimmed);
+    setNotFound(!found);
+  }
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    lookup(query);
+  }
+
+  return (
+    <div className="mx-auto max-w-2xl">
+      <Card className="p-6 sm:p-8">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Enter your ticket number (e.g. PG-48213)"
+              className="w-full rounded-lg border-2 border-border py-2.5 pl-10 pr-3.5 text-sm outline-none transition-colors focus:border-brand-blue"
+            />
+          </div>
+          <Button type="submit">Track It</Button>
+        </form>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <span>Try a demo ticket:</span>
+          {DEMO_TICKETS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => {
+                setQuery(t.id);
+                lookup(t.id);
+              }}
+              className={cn(
+                "rounded-full border border-border px-3 py-1 text-xs font-medium text-brand-navy transition-colors hover:border-brand-red/50 hover:bg-brand-red/5 hover:text-brand-red",
+                activeId?.toLowerCase() === t.id.toLowerCase() &&
+                  "border-brand-red/50 bg-brand-red/5 text-brand-red"
+              )}
+            >
+              {t.id}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      {notFound && (
+        <Card className="mt-6 p-6 text-center">
+          <p className="font-medium text-brand-navy">
+            We couldn&rsquo;t find a ticket with that number.
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            This is a demo — try one of the sample tickets above, or give a
+            shop a call and we&rsquo;ll look yours up directly.
+          </p>
+        </Card>
+      )}
+
+      {ticket && (
+        <Card className="mt-6 p-6 sm:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Ticket {ticket.id}
+              </p>
+              <h2 className="mt-1 text-xl font-bold text-brand-navy">
+                {ticket.device}
+              </h2>
+              <p className="text-sm text-muted-foreground">{ticket.issue}</p>
+            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue-light px-3 py-1 text-xs font-semibold text-brand-blue">
+              <MapPin className="h-3.5 w-3.5" />
+              {ticket.location}
+            </span>
+          </div>
+
+          {ticket.currentStep === TRACKER_STEPS.length - 1 && (
+            <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              Ready for pickup — swing by whenever works for you.
+            </div>
+          )}
+
+          <div className="mt-8">
+            <RepairStepper ticket={ticket} />
+          </div>
+
+          <label className="mt-8 flex items-start gap-2.5 rounded-lg border border-border p-3.5 text-sm">
+            <input
+              type="checkbox"
+              checked={notifyMe}
+              onChange={(e) => setNotifyMe(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-brand-red"
+            />
+            <span className="text-muted-foreground">
+              <Bell className="mr-1 inline h-3.5 w-3.5 text-brand-red" />
+              Text me when it&rsquo;s ready for pickup
+              <span className="block text-xs text-muted-foreground/70">
+                (Demo only — not wired up to real notifications)
+              </span>
+            </span>
+          </label>
+        </Card>
+      )}
+    </div>
+  );
+}

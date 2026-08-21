@@ -32,9 +32,12 @@ These are the "make it feel like a real product, not a template" pieces —
 the stuff that actually shows off during the interview. Roughly ranked by
 impact vs. effort.
 
-### 2.1 Repair Status Tracker ("Track My Repair")
-The one we kept coming back to. A live-feeling status tracker even though
-it's running on mock/demo data.
+### 2.1 Repair Status Tracker ("Track My Repair") — done
+Shipped at `/track`, linked from the header nav and footer sitemap. Ticket
+data lives in `src/lib/tracker-data.ts` — 3 demo tickets at different
+pipeline stages (mid-repair, complete, just dropped off). Marked with a
+"Demo feature" badge in the hero so it reads honestly as illustrative
+rather than a real live system.
 - Enter a ticket number (or just click a demo ticket) → see a stepper:
   **Dropped Off → Diagnosing → Repairing → Quality Check → Ready for Pickup**
 - Each step gets a timestamp + a short geek-toned note ("Battery's out, new
@@ -47,18 +50,46 @@ it's running on mock/demo data.
 - Build note: pure client-side state + a small mock dataset keyed by ticket
   number. No backend needed.
 
-### 2.2 Free Diagnostic / "What's Wrong With My Device?" Quiz Flow
-Positioned as the free-value hook mentioned below — a quick, guided
-triage tool instead of a blank contact form.
-- 3–4 step flow: **Device type → Symptom(s) → Device age/model** → result
-  screen with a likely-issue summary, a ballpark price range, and a clear
-  CTA into the real estimate flow.
-- This *is* the "free value" thing — it gives the visitor something useful
-  (an honest-feeling diagnosis) before ever asking for contact info, which
-  is exactly the kind of small-business trust move Phone Geeks already
-  leans on ("Consult a Geek," free in-person diagnosis).
-- Doubles as lead-gen: the result screen is the natural spot to offer
-  "email me this estimate" → feeds the email capture flow (§2.4).
+### 2.2 Free Diagnostic / "What's Wrong With My Device?" Quiz Flow — skeleton shipped
+Shipped at `/diagnose`, linked from the footer sitemap and cross-linked
+from the Estimate page ("Not sure what's even wrong? Try our free
+diagnostic first"). Symptom-first flow (device → plain-language symptom →
+likely diagnosis + price/turnaround), deliberately kept a step simpler
+than the Estimate wizard — no contact capture here, it hands off to
+`/estimate` for that instead of duplicating it.
+- Symptom → repair mapping lives in `src/lib/diagnose-data.ts`, referencing
+  repair names from `services-data.ts` rather than duplicating
+  price/turnaround data.
+- Explicitly framed in the UI (not just this doc) as a rule-based skeleton:
+  a callout right under the hero states plainly that this fixed decision
+  tree is the seed for training a real conversational AI agent on Phone
+  Geeks' own repair history and how the technicians actually triage in
+  person — ties directly to §4.1 (AI phone agent) and §4.2 (SMS/chat
+  follow-up) below; this diagnostic flow is effectively the chat-based
+  sibling of that phone agent idea.
+- Still open: this *is* the "free value" hook — the result screen is the
+  natural spot to eventually offer "email me this diagnosis," which would
+  connect it to the email capture flow (§2.4).
+- **Now connected to the Estimate flow.** Finishing the diagnostic quiz
+  persists the result to `localStorage` (`src/lib/diagnostic-storage.ts`,
+  key `pg_last_diagnosis`) — only a *finished* run is saved, never partial
+  quiz progress. Landing on `/estimate` with a valid saved diagnosis shows
+  a yes/no prompt ("Use your recent diagnostic?"); saying yes prefills the
+  device + issue and skips straight to the drop-off step, saying no clears
+  it and shows the normal picker.
+  - Deliberately localStorage, not sessionStorage: persists across tab
+    navigation and is shared across every tab of the same origin, not
+    scoped to one tab.
+  - Cross-tab live pickup, not just persistence: reading uses
+    `useSyncExternalStore` subscribed to the browser's native `storage`
+    event, so if a diagnostic finishes in *another* already-open tab while
+    the Estimate page's first step is showing in this one, the prompt
+    appears without a reload. Verified with real multi-tab browser
+    automation, not just single-tab persistence.
+  - The wizard re-derives the actual price/turnaround from
+    `services-data.ts` at accept-time rather than trusting the stored
+    snapshot, so a stale localStorage entry can never show outdated
+    pricing.
 
 ### 2.3 Interactive Pricing/Quote Calculator (from original brief) — done
 - Device category → issue → instant estimated price range + turnaround time.
@@ -124,3 +155,92 @@ list below, now live. Still open, the lower-intent entry points:
 - Repair tracker (§2.1): keep purely as a marketing demo page, or frame it
   as "here's what this could become with a real backend" in the interview
   pitch itself?
+
+---
+
+## 4. Business Backend / AI Services Brainstorm (exploratory — outside site scope)
+
+Real operational tooling for the shop, not portfolio-site features. None of
+this needs to be built for the interview demo — it's here so the idea
+doesn't get lost, and because it's exactly the kind of thing worth having
+an opinion on when talking to a small-business owner about where a website
+project could grow into. Grouped by what they'd actually replace or augment.
+
+### 4.1 AI Phone Answering Agent
+The highest-leverage one for a shop like this — a lot of repair-shop call
+volume is the same five questions repeated all day.
+- Handles "are you open," "how much to fix a cracked screen," "is my phone
+  ready," warranty questions — pulled from the same FAQ/pricing data already
+  in `services-data.ts` and `faq-data.ts` so the agent and the website never
+  disagree with each other.
+- Books/reschedules consults, takes a message with callback info for
+  anything it can't resolve, and escalates immediately for anything that
+  sounds urgent or upset.
+- Realistic stack: Twilio (or Vapi/Bland/Retell, which bundle the telephony)
+  + an LLM with function-calling into the shop's real pricing/schedule data.
+  Not a build-from-scratch phone system.
+- Failure mode to design around up front: never let it quote a firm price
+  on anything outside the standard repair list, and always give an easy
+  "let me get a person" path — a bad automated quote is worse than a missed
+  call for a trust-first small business.
+
+### 4.2 SMS/Email Status &amp; Follow-Up Agent
+Direct extension of the repair status tracker brainstorm (§2.1) — this is
+what makes it real instead of a demo.
+- Auto-texts customers on real status changes (dropped off, ready for
+  pickup) instead of staff manually notifying people.
+- Post-repair follow-up: review request to happy customers, a friendly
+  check-in if something needed a re-do.
+- This is the one most worth prioritizing first if any of §4 gets built for
+  real — it's low-risk (informational, not decision-making) and directly
+  extends work already done on the site (repair tracker UI, warranty
+  messaging).
+
+### 4.3 Parts &amp; Retail Stock System
+- Track screen/battery/part inventory per location (Arnold, Ballwin, and
+  Affton once it's real), with low-stock alerts and reorder suggestions.
+- Natural tie-in to the Estimate wizard: a quote could eventually reflect
+  "in stock, ready today" vs. "special order, +2 days" per location instead
+  of a flat turnaround estimate.
+- Retail resale (refurbished phones/accessories) needs its own SKU/condition
+  tracking, separate from repair parts inventory.
+- This is the one with the most "real software project" scope — worth
+  treating as its own future engagement, not a bolt-on.
+
+### 4.4 Buyback/Trade-In Pricing Agent
+- Phone Geeks already does gadget buyback — an AI-assisted tool that checks
+  current resale comps (eBay/marketplace data) so trade-in offers are
+  consistent across staff and both locations, instead of one employee's gut
+  feel varying from another's.
+- Lower priority than §4.1/4.2 — nice-to-have consistency tool, not a
+  customer-facing pain point.
+
+### 4.5 Review &amp; Reputation Management Agent
+- Drafts responses to new Google reviews for owner approval (not
+  auto-posting — a bad AI-written reply to a bad review is its own PR
+  problem).
+- Flags negative reviews for same-day attention.
+- Pairs naturally with §4.2's post-repair follow-up (that's the review
+  *request* side; this is the review *response* side).
+
+### 4.6 Internal Knowledge Base / Tech-Facing Assistant
+- A chatbot trained on the shop's own repair guides and common-fix notes,
+  for faster ramp-up on new hires and quick lookups mid-repair.
+- Genuinely different audience from everything else in this list (staff,
+  not customers) — lowest priority, but worth naming since it's a very
+  different kind of "AI agent" than the customer-facing ones above.
+
+### 4.7 Owner-Facing Ops Digest
+- A daily/weekly AI-generated summary across both (eventually three)
+  locations: repairs completed, revenue, low-stock flags, any reviews that
+  need attention — one digest instead of the owner checking four systems.
+- This is the "so what" layer that makes §4.1–4.5 worth having in one place
+  rather than four disconnected tools.
+
+### Where this could show up in the interview pitch
+Even though none of this is being built now, it's a legitimate answer to
+"where would you take this next" — the honest pitch is: the website
+(this repo) is the customer-facing layer, and §4 is the operational layer
+underneath it that a small shop like this actually needs more than another
+redesign. Worth having the ranked list (§4.1 → §4.2 → the rest) ready as a
+talking point rather than a vague "AI could help with a lot of things."
