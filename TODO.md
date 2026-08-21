@@ -32,9 +32,12 @@ These are the "make it feel like a real product, not a template" pieces —
 the stuff that actually shows off during the interview. Roughly ranked by
 impact vs. effort.
 
-### 2.1 Repair Status Tracker ("Track My Repair")
-The one we kept coming back to. A live-feeling status tracker even though
-it's running on mock/demo data.
+### 2.1 Repair Status Tracker ("Track My Repair") — done
+Shipped at `/track`, linked from the header nav and footer sitemap. Ticket
+data lives in `src/lib/tracker-data.ts` — 3 demo tickets at different
+pipeline stages (mid-repair, complete, just dropped off). Marked with a
+"Demo feature" badge in the hero so it reads honestly as illustrative
+rather than a real live system.
 - Enter a ticket number (or just click a demo ticket) → see a stepper:
   **Dropped Off → Diagnosing → Repairing → Quality Check → Ready for Pickup**
 - Each step gets a timestamp + a short geek-toned note ("Battery's out, new
