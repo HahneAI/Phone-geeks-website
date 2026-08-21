@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { ArrowLeft, Clock, Mail, PackageCheck, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { cn, scrollPastSticky } from "@/lib/utils";
 import { SERVICE_CATEGORIES, type RepairItem } from "@/lib/services-data";
 import { LOCATIONS } from "@/lib/locations";
 import { StepProgress } from "./step-progress";
@@ -39,6 +39,21 @@ export function QuoteWizard() {
   const [locationSlug, setLocationSlug] = useState<string | null>(null);
   const [contact, setContact] = useState<ContactValues | null>(null);
 
+  const cardRef = useRef<HTMLDivElement>(null);
+  const prevStepRef = useRef<Step | null>(null);
+
+  // Land each step (including the final result) at the top of the wizard
+  // card, clear of the sticky header. Compares against the previous step
+  // rather than a "did we mount yet" flag so it's a no-op on an unchanged
+  // step — including React Strict Mode's dev-only double effect run on
+  // mount — and only fires on a genuine step transition.
+  useEffect(() => {
+    if (prevStepRef.current !== null && prevStepRef.current !== step && cardRef.current) {
+      scrollPastSticky(cardRef.current);
+    }
+    prevStepRef.current = step;
+  }, [step]);
+
   const {
     register,
     handleSubmit,
@@ -66,7 +81,7 @@ export function QuoteWizard() {
   }
 
   return (
-    <Card className="mx-auto max-w-2xl p-6 sm:p-10">
+    <Card ref={cardRef} className="mx-auto max-w-2xl p-6 sm:p-10">
       {step !== "result" && (
         <div className="mb-10">
           <StepProgress current={stepNumber} />
