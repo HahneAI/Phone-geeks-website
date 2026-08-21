@@ -124,3 +124,92 @@ list below, now live. Still open, the lower-intent entry points:
 - Repair tracker (§2.1): keep purely as a marketing demo page, or frame it
   as "here's what this could become with a real backend" in the interview
   pitch itself?
+
+---
+
+## 4. Business Backend / AI Services Brainstorm (exploratory — outside site scope)
+
+Real operational tooling for the shop, not portfolio-site features. None of
+this needs to be built for the interview demo — it's here so the idea
+doesn't get lost, and because it's exactly the kind of thing worth having
+an opinion on when talking to a small-business owner about where a website
+project could grow into. Grouped by what they'd actually replace or augment.
+
+### 4.1 AI Phone Answering Agent
+The highest-leverage one for a shop like this — a lot of repair-shop call
+volume is the same five questions repeated all day.
+- Handles "are you open," "how much to fix a cracked screen," "is my phone
+  ready," warranty questions — pulled from the same FAQ/pricing data already
+  in `services-data.ts` and `faq-data.ts` so the agent and the website never
+  disagree with each other.
+- Books/reschedules consults, takes a message with callback info for
+  anything it can't resolve, and escalates immediately for anything that
+  sounds urgent or upset.
+- Realistic stack: Twilio (or Vapi/Bland/Retell, which bundle the telephony)
+  + an LLM with function-calling into the shop's real pricing/schedule data.
+  Not a build-from-scratch phone system.
+- Failure mode to design around up front: never let it quote a firm price
+  on anything outside the standard repair list, and always give an easy
+  "let me get a person" path — a bad automated quote is worse than a missed
+  call for a trust-first small business.
+
+### 4.2 SMS/Email Status &amp; Follow-Up Agent
+Direct extension of the repair status tracker brainstorm (§2.1) — this is
+what makes it real instead of a demo.
+- Auto-texts customers on real status changes (dropped off, ready for
+  pickup) instead of staff manually notifying people.
+- Post-repair follow-up: review request to happy customers, a friendly
+  check-in if something needed a re-do.
+- This is the one most worth prioritizing first if any of §4 gets built for
+  real — it's low-risk (informational, not decision-making) and directly
+  extends work already done on the site (repair tracker UI, warranty
+  messaging).
+
+### 4.3 Parts &amp; Retail Stock System
+- Track screen/battery/part inventory per location (Arnold, Ballwin, and
+  Affton once it's real), with low-stock alerts and reorder suggestions.
+- Natural tie-in to the Estimate wizard: a quote could eventually reflect
+  "in stock, ready today" vs. "special order, +2 days" per location instead
+  of a flat turnaround estimate.
+- Retail resale (refurbished phones/accessories) needs its own SKU/condition
+  tracking, separate from repair parts inventory.
+- This is the one with the most "real software project" scope — worth
+  treating as its own future engagement, not a bolt-on.
+
+### 4.4 Buyback/Trade-In Pricing Agent
+- Phone Geeks already does gadget buyback — an AI-assisted tool that checks
+  current resale comps (eBay/marketplace data) so trade-in offers are
+  consistent across staff and both locations, instead of one employee's gut
+  feel varying from another's.
+- Lower priority than §4.1/4.2 — nice-to-have consistency tool, not a
+  customer-facing pain point.
+
+### 4.5 Review &amp; Reputation Management Agent
+- Drafts responses to new Google reviews for owner approval (not
+  auto-posting — a bad AI-written reply to a bad review is its own PR
+  problem).
+- Flags negative reviews for same-day attention.
+- Pairs naturally with §4.2's post-repair follow-up (that's the review
+  *request* side; this is the review *response* side).
+
+### 4.6 Internal Knowledge Base / Tech-Facing Assistant
+- A chatbot trained on the shop's own repair guides and common-fix notes,
+  for faster ramp-up on new hires and quick lookups mid-repair.
+- Genuinely different audience from everything else in this list (staff,
+  not customers) — lowest priority, but worth naming since it's a very
+  different kind of "AI agent" than the customer-facing ones above.
+
+### 4.7 Owner-Facing Ops Digest
+- A daily/weekly AI-generated summary across both (eventually three)
+  locations: repairs completed, revenue, low-stock flags, any reviews that
+  need attention — one digest instead of the owner checking four systems.
+- This is the "so what" layer that makes §4.1–4.5 worth having in one place
+  rather than four disconnected tools.
+
+### Where this could show up in the interview pitch
+Even though none of this is being built now, it's a legitimate answer to
+"where would you take this next" — the honest pitch is: the website
+(this repo) is the customer-facing layer, and §4 is the operational layer
+underneath it that a small shop like this actually needs more than another
+redesign. Worth having the ranked list (§4.1 → §4.2 → the rest) ready as a
+talking point rather than a vague "AI could help with a lot of things."
