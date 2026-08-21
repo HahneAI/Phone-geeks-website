@@ -15,7 +15,7 @@ tracks build status and the ideas we've floated on top of it.
 - [x] Vercel deploy prep (build verified, engines pinned, no stray deps)
 
 ### Up next (core sitemap, from the original brief)
-- [ ] **Services page** — detailed breakdown per repair type (currently a dead link on the live site; needs to be a real page)
+- [x] **Services page** — detailed breakdown per repair type, with mock pricing/turnaround per category and a jump-nav
 - [ ] **Estimate page** — interactive quote flow (see §3 below, this is getting an upgrade past "just a form")
 - [ ] **Contact page** — Arnold + Ballwin location cards, embedded map, live/today's hours; decide how (or whether) to surface Affton
 - [ ] **FAQ page** — accordion component, reusing the real Q&A content already in the brief
