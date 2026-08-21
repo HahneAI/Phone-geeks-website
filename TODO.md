@@ -19,7 +19,7 @@ tracks build status and the ideas we've floated on top of it.
 - [x] **Estimate page** — 4-step wizard (device → issue → drop-off → contact) with a mock instant estimate result; folds in the quote calculator (§2.3) and email capture (§2.4) brainstorm items
 - [x] **Contact page** — Arnold + Ballwin cards with embedded map, live open/closed badge, and directions link. Affton: no real address/phone exists for it in the brief, so rather than invent one it gets an honest note pointing to the two real shops. Hours are a placeholder (`src/lib/locations.ts`) pending the shop's real schedule. Note: Google Maps embeds don't load inside this sandbox's outbound proxy (`ERR_TUNNEL_CONNECTION_FAILED` on `maps.google.com`) — that's a sandbox network restriction, not a code issue; verify once on Vercel's real network.
 - [x] **FAQ page** — Framer Motion accordion, grouped into Warranty & Payment / Repair Process / What We Repair, using the real Q&A from the brief (typos and grammar cleaned up per §5)
-- [ ] Polish pass — animation pass with Framer Motion, responsive QA on all pages, favicon/OG image, meta per page
+- [x] Polish pass — branded favicon + OG share image (generated via `next/og`, no image asset needed), `metadataBase` wired to the real Vercel URL, scroll-reveal animation pass (`Reveal` component) on the card grids across Home/Services/Contact/FAQ, and a full responsive + console-error sweep on all 5 pages at mobile width
 
 ### Stretch (lower priority for interview demo)
 - [ ] Blog / device-tips content — only if time allows, hardcoded posts are fine

@@ -3,6 +3,7 @@ import { FaqHero } from "@/components/faq/faq-hero";
 import { AccordionItem } from "@/components/faq/accordion-item";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Reveal } from "@/components/ui/reveal";
 import { FAQ_CATEGORIES } from "@/lib/faq-data";
 
 export const metadata: Metadata = {
@@ -17,8 +18,8 @@ export default function FaqPage() {
       <FaqHero />
       <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
         <div className="flex flex-col gap-10">
-          {FAQ_CATEGORIES.map((category) => (
-            <div key={category.title}>
+          {FAQ_CATEGORIES.map((category, index) => (
+            <Reveal key={category.title} delay={index * 0.1}>
               <h2 className="text-lg font-bold text-brand-navy">
                 {category.title}
               </h2>
@@ -27,7 +28,7 @@ export default function FaqPage() {
                   <AccordionItem key={item.question} item={item} />
                 ))}
               </Card>
-            </div>
+            </Reveal>
           ))}
         </div>
 

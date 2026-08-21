@@ -3,6 +3,7 @@ import { PackageCheck, Info } from "lucide-react";
 import { ContactHero } from "@/components/contact/contact-hero";
 import { LocationCard } from "@/components/contact/location-card";
 import { Button } from "@/components/ui/button";
+import { Reveal } from "@/components/ui/reveal";
 import { LOCATIONS } from "@/lib/locations";
 
 export const metadata: Metadata = {
@@ -17,8 +18,10 @@ export default function ContactPage() {
       <ContactHero />
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="grid gap-8 md:grid-cols-2">
-          {LOCATIONS.map((location) => (
-            <LocationCard key={location.slug} location={location} />
+          {LOCATIONS.map((location, index) => (
+            <Reveal key={location.slug} delay={index * 0.1}>
+              <LocationCard location={location} />
+            </Reveal>
           ))}
         </div>
 
