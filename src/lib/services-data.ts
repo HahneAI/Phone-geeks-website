@@ -24,6 +24,10 @@ export interface ServiceCategory {
   description: string;
   repairs: RepairItem[];
   note?: string;
+  /** Overrides for categories with no repair list (e.g. Retail links to /retail, not /estimate). */
+  ctaHref?: string;
+  ctaLabel?: string;
+  ctaBody?: string;
 }
 
 export const SERVICE_CATEGORIES: ServiceCategory[] = [
@@ -101,6 +105,9 @@ export const SERVICE_CATEGORIES: ServiceCategory[] = [
     description:
       "Refurbished phones and accessories, tested in-house and backed by our 60-day return window.",
     repairs: [],
+    ctaHref: "/retail",
+    ctaLabel: "Shop Refurbished",
+    ctaBody: "See what's in stock at each shop right now.",
   },
   {
     slug: "consult",

@@ -5,7 +5,7 @@ import { Reveal } from "@/components/ui/reveal";
 import type { ServiceCategory } from "@/lib/services-data";
 
 export function CategorySection({ category }: { category: ServiceCategory }) {
-  const { icon: Icon, title, description, repairs } = category;
+  const { icon: Icon, title, description, repairs, ctaHref, ctaLabel, ctaBody } = category;
 
   return (
     <section
@@ -52,11 +52,11 @@ export function CategorySection({ category }: { category: ServiceCategory }) {
         <Reveal delay={0.1}>
           <div className="mt-8 flex flex-col items-start gap-5 rounded-2xl border-2 border-border bg-surface-muted p-8 sm:flex-row sm:items-center sm:justify-between">
             <p className="max-w-xl text-muted-foreground">
-              No fixed price list here — stop by or start online and a geek
-              will walk you through it.
+              {ctaBody ??
+                "No fixed price list here — stop by or start online and a geek will walk you through it."}
             </p>
-            <Button href="/estimate" variant="secondary" className="shrink-0">
-              Get Started
+            <Button href={ctaHref ?? "/estimate"} variant="secondary" className="shrink-0">
+              {ctaLabel ?? "Get Started"}
             </Button>
           </div>
         </Reveal>
