@@ -199,6 +199,12 @@ what makes it real instead of a demo.
 ### 4.3 Parts &amp; Retail Stock System — retail half previewed on-site
 - Track screen/battery/part inventory per location (Arnold, Ballwin, and
   Affton once it's real), with low-stock alerts and reorder suggestions.
+- The AI layer on top of that: not just alerts a human has to act on, but
+  autonomous reordering — set a floor per SKU per location (e.g. "never
+  below 10 USB-C chargers at either shop") and have it automatically place
+  an order with a nearby vendor the moment a count dips under that line,
+  rather than someone noticing the shelf is thin. Called out explicitly in
+  the `/retail` demo's `InventoryNote` copy, not just here.
 - Natural tie-in to the Estimate wizard: a quote could eventually reflect
   "in stock, ready today" vs. "special order, +2 days" per location instead
   of a flat turnaround estimate.

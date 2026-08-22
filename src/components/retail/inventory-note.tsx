@@ -18,6 +18,13 @@ export function InventoryNote() {
             what you see here always matches what&rsquo;s really on the
             shelf — the retail &amp; parts inventory system on the roadmap.
           </p>
+          <p className="mt-2.5 text-sm leading-relaxed text-brand-navy/80">
+            Paired with AI-driven stock handling, it could go a step
+            further and act on its own: keep a floor like &ldquo;never
+            below 10 USB-C chargers at either shop&rdquo; and automatically
+            place a reorder with a nearby vendor the moment a count dips
+            under it — no one has to notice the shelf is getting thin.
+          </p>
         </div>
       </div>
     </div>
