@@ -119,10 +119,12 @@ function checkAuth(req: Request): Response | null {
 /**
  * Wraps a route handler so a thrown error still returns HTTP 200 with an
  * error result per tool call, instead of a 500 that Vapi would ignore.
+ * handleOne may be sync or async — results are awaited either way, and
+ * calls run concurrently (Promise.all) rather than one at a time.
  */
 export async function handleVapiTools(
   req: Request,
-  handleOne: (call: VapiToolCall) => unknown
+  handleOne: (call: VapiToolCall) => unknown | Promise<unknown>
 ): Promise<Response> {
   const authError = checkAuth(req);
   if (authError) return authError;
@@ -135,18 +137,20 @@ export async function handleVapiTools(
     return Response.json(vapiResults([]), { status: 200 });
   }
 
-  const results = calls.map((call) => {
-    try {
-      return { toolCallId: call.id, result: handleOne(call) };
-    } catch (err) {
-      return {
-        toolCallId: call.id,
-        result: `Something went wrong looking that up: ${
-          err instanceof Error ? err.message : "unknown error"
-        }`,
-      };
-    }
-  });
+  const results = await Promise.all(
+    calls.map(async (call) => {
+      try {
+        return { toolCallId: call.id, result: await handleOne(call) };
+      } catch (err) {
+        return {
+          toolCallId: call.id,
+          result: `Something went wrong looking that up: ${
+            err instanceof Error ? err.message : "unknown error"
+          }`,
+        };
+      }
+    })
+  );
 
   return Response.json(vapiResults(results), { status: 200 });
 }

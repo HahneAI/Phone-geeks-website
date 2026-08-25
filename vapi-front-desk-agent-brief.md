@@ -260,10 +260,24 @@ Run these once the assistant is built, before treating it as done:
   + wrong/missing header → 401, secret unset → open) by hand.
 - Real phone number + Vapi/Twilio number provisioning — not needed until
   this moves past demo stage.
-- Whether `book_mock_appointment` should actually write into the site's
-  existing mock ticket data (`src/lib/tracker-data.ts`) so a booked call
-  shows up trackable at `/track` — nice full-circle demo moment, not yet
-  built (it currently only `console.log`s the booking).
+- **`book_mock_appointment` now writes to a real, shared store** —
+  `src/lib/booking-store.ts` (Upstash Redis, via `@upstash/redis`) —
+  instead of just `console.log`ging, and a booking made over the phone
+  really does show up trackable at `/track` via a new
+  `/api/track/[id]` lookup route. Verified the full loop by hand: book →
+  reference number → look it up on `/track` → renders through the exact
+  same `RepairStepper` UI as the 3 static demo tickets, starting at
+  "Dropped Off" (active, not checked — the caller hasn't brought the
+  device in yet, just requested the appointment).
+  - **One manual step left**: no Redis is actually provisioned on this
+    Vercel project yet. Until the Upstash (or Vercel KV) marketplace
+    integration is added in the dashboard and the project redeployed,
+    `booking-store.ts` falls back to an in-memory `Map` that resets on
+    every cold start — bookings won't reliably persist in production.
+    The tool's own response is honest about this: `trackable` in the
+    result is `false` until real Redis is configured, and the spoken
+    disclaimer only tells callers to check `/track` when it's actually
+    true.
 - Real inventory/calendar integration is the eventual endpoint (ties to
   §4.1 and §4.3 in `TODO.md`) — this brief only covers the mock/demo
   foundation.

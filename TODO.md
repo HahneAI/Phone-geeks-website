@@ -334,8 +334,18 @@ built here is a legitimate starting point to grow into a real system.
   call you back" rather than going silent.
 
 ### Tier 1 — Real business operations (the actual point of the agent)
-- **Real appointment booking**, replacing `book_mock_appointment`'s mock
-  reference number. Two paths depending on what the shop uses:
+- [x] **`book_mock_appointment` writes to a real, shared store** and a
+  phone booking now shows up trackable at `/track`
+  (`src/lib/booking-store.ts`, `/api/track/[id]`) — full loop verified by
+  hand. Still needs the Upstash/Vercel KV marketplace integration added
+  in the Vercel dashboard + redeploy before it's durable in production;
+  until then it's an honest in-memory fallback (the tool's own response
+  reports `trackable: false` and skips telling callers to check `/track`
+  when it can't actually promise that).
+- **Real appointment booking against the shop's actual system** — the
+  above is a real *shared* record now, but it's still Phone Geeks' own
+  minimal store, not the shop's real intake. Two paths depending on what
+  they use:
   - If they use RepairShopr/RepairDesk/similar: call that platform's API
     directly to create a real ticket — the agent's booking *is* the
     shop's real intake, no parallel system needed.

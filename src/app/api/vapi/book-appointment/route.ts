@@ -1,12 +1,13 @@
 import { handleVapiTools, type VapiToolCall } from "@/lib/vapi";
 import { LOCATIONS } from "@/lib/locations";
+import { saveBooking, isBookingStoreDurable } from "@/lib/booking-store";
 
 /** Same PG-##### style as the /track demo tickets, for a consistent bit. */
 function generateReference() {
   return `PG-${Math.floor(10000 + Math.random() * 90000)}`;
 }
 
-function bookAppointment(call: VapiToolCall) {
+async function bookAppointment(call: VapiToolCall) {
   const { device, issue, location, caller_name, callback_number, preferred_time } =
     call.arguments;
 
@@ -35,11 +36,19 @@ function bookAppointment(call: VapiToolCall) {
 
   const reference = generateReference();
 
-  // No real persistence in this demo — logged so it's visible during a
-  // test call, not written anywhere durable. See the "Open Questions"
-  // section of vapi-front-desk-agent-brief.md for wiring this into the
-  // /track demo data as a follow-up.
-  console.log("[vapi] mock appointment booked", {
+  await saveBooking({
+    reference,
+    device: String(device),
+    issue: String(issue),
+    locationSlug: loc.slug,
+    locationName: loc.name,
+    callerName: String(caller_name),
+    callbackNumber: String(callback_number),
+    preferredTime: preferred_time ? String(preferred_time) : undefined,
+    createdAt: new Date().toISOString(),
+  });
+
+  console.log("[vapi] appointment booked", {
     reference,
     device,
     issue,
@@ -47,6 +56,7 @@ function bookAppointment(call: VapiToolCall) {
     caller_name,
     callback_number,
     preferred_time,
+    durable: isBookingStoreDurable(),
   });
 
   return {
@@ -56,8 +66,12 @@ function bookAppointment(call: VapiToolCall) {
     summary: `${device} — ${issue} at ${loc.name}${
       preferred_time ? `, preferred time: ${preferred_time}` : ""
     }`,
+    trackable: isBookingStoreDurable(),
     disclaimer:
-      "This is a demo booking, not a confirmed real appointment — a person from the shop will call to confirm.",
+      "This is a demo booking, not a confirmed real appointment — a person from the shop will call to confirm." +
+      (isBookingStoreDurable()
+        ? " You can look up this reference number on our website's Track Repair page."
+        : ""),
   };
 }
 
