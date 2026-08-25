@@ -88,6 +88,35 @@ export function vapiResults(results: { toolCallId: string; result: unknown }[]) 
 }
 
 /**
+ * Rejects the request if VAPI_TOOL_SECRET is set and the caller didn't
+ * send it back in the x-vapi-tool-secret header. Returns a real 401 (this
+ * runs *before* the "always return 200" tool-execution contract kicks in
+ * — a caller without the right secret isn't Vapi placing a legitimate
+ * tool call, so it doesn't need the same treatment).
+ *
+ * Vapi doesn't attach a predictable auth header to tool calls on its own
+ * — per Vapi's server-authentication docs, the reliable way to get one
+ * sent is to set it explicitly in a tool's own `server.headers` when
+ * creating the tool (see vapi-front-desk-agent-brief.md §4), rather than
+ * relying on its legacy/default secret behavior, which multiple users
+ * have reported as inconsistent.
+ *
+ * If VAPI_TOOL_SECRET isn't set (e.g. local dev), this is a no-op — the
+ * route stays open, same as it's been through the earlier demo/testing
+ * phase.
+ */
+function checkAuth(req: Request): Response | null {
+  const expected = process.env.VAPI_TOOL_SECRET;
+  if (!expected) return null;
+
+  const provided = req.headers.get("x-vapi-tool-secret");
+  if (provided !== expected) {
+    return Response.json({ error: "unauthorized" }, { status: 401 });
+  }
+  return null;
+}
+
+/**
  * Wraps a route handler so a thrown error still returns HTTP 200 with an
  * error result per tool call, instead of a 500 that Vapi would ignore.
  */
@@ -95,6 +124,9 @@ export async function handleVapiTools(
   req: Request,
   handleOne: (call: VapiToolCall) => unknown
 ): Promise<Response> {
+  const authError = checkAuth(req);
+  if (authError) return authError;
+
   let calls: VapiToolCall[] = [];
   try {
     const body = (await req.json()) as VapiRequestBody;

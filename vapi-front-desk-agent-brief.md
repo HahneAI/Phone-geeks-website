@@ -142,7 +142,10 @@ from the runtime request/response format above:
       "required": ["item_name", "location"]
     }
   },
-  "server": { "url": "https://YOUR-DEPLOYMENT.vercel.app/api/vapi/stock" }
+  "server": {
+    "url": "https://YOUR-DEPLOYMENT.vercel.app/api/vapi/stock",
+    "headers": { "x-vapi-tool-secret": "YOUR_SECRET" }
+  }
 }
 ```
 
@@ -162,7 +165,10 @@ from the runtime request/response format above:
       "required": ["device_category", "issue"]
     }
   },
-  "server": { "url": "https://YOUR-DEPLOYMENT.vercel.app/api/vapi/estimate" }
+  "server": {
+    "url": "https://YOUR-DEPLOYMENT.vercel.app/api/vapi/estimate",
+    "headers": { "x-vapi-tool-secret": "YOUR_SECRET" }
+  }
 }
 ```
 
@@ -186,7 +192,10 @@ from the runtime request/response format above:
       "required": ["device", "issue", "location", "caller_name", "callback_number"]
     }
   },
-  "server": { "url": "https://YOUR-DEPLOYMENT.vercel.app/api/vapi/book-appointment" }
+  "server": {
+    "url": "https://YOUR-DEPLOYMENT.vercel.app/api/vapi/book-appointment",
+    "headers": { "x-vapi-tool-secret": "YOUR_SECRET" }
+  }
 }
 ```
 
@@ -241,9 +250,14 @@ Run these once the assistant is built, before treating it as done:
   the public internet, so `localhost` won't work. Swap
   `YOUR-DEPLOYMENT.vercel.app` above for the real Vercel URL once
   deployed, and re-run the test call scenarios in §6 against it.
-- No auth on these routes yet — fine for a demo, but before this is a
-  real phone number taking real calls, add a shared-secret header check
-  (e.g. `x-vapi-secret`) so nothing but Vapi can hit them.
+- **Auth is built, just needs turning on.** Set a `VAPI_TOOL_SECRET` env
+  var on the Vercel project (any random string), and put the same value
+  in each tool's `server.headers.x-vapi-tool-secret` in Vapi's dashboard
+  (already shown in the JSON above) — the routes reject anything else
+  with a 401. Leaving `VAPI_TOOL_SECRET` unset keeps the routes open,
+  which is what they've been through the demo/testing phase so far.
+  Verified both states (secret set + correct header → works, secret set
+  + wrong/missing header → 401, secret unset → open) by hand.
 - Real phone number + Vapi/Twilio number provisioning — not needed until
   this moves past demo stage.
 - Whether `book_mock_appointment` should actually write into the site's

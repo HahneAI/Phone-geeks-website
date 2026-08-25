@@ -185,11 +185,15 @@ volume is the same five questions repeated all day.
 - **`vapi-knowledge-base.md`** (repo root) is upload-ready as-is — no
   per-repair pricing in it on purpose, since that comes from the
   `get_repair_estimate` tool instead so it can't drift from the site.
+- **Auth built** (`VAPI_TOOL_SECRET` env var + `x-vapi-tool-secret`
+  header, real 401 on mismatch, no-op when unset) — off by default,
+  flip it on when this stops being a demo. Verified all three states.
+- Real live traffic already caught one payload-shape bug — fixed and
+  PR'd (#7), see brief §4 for the specifics.
 - Still open: these routes only work once deployed (Vapi needs a public
-  URL, not localhost); no auth on them yet (fine for a demo, add a
-  shared-secret header before this is a real phone number); and
-  `book_mock_appointment` only `console.log`s the booking rather than
-  writing into `/track`'s ticket data — see brief §7 for both.
+  URL, not localhost — swap the placeholder domain in the tool JSON for
+  the real one); and `book_mock_appointment` only `console.log`s the
+  booking rather than writing into `/track`'s ticket data — see brief §7.
 - Handles "are you open," "how much to fix a cracked screen," "is my phone
   ready," warranty questions — pulled from the same FAQ/pricing data already
   in `services-data.ts` and `faq-data.ts` so the agent and the website never
