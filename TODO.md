@@ -337,11 +337,16 @@ built here is a legitimate starting point to grow into a real system.
 - [x] **`book_mock_appointment` writes to a real, shared store** and a
   phone booking now shows up trackable at `/track`
   (`src/lib/booking-store.ts`, `/api/track/[id]`) — full loop verified by
-  hand. Still needs the Upstash/Vercel KV marketplace integration added
-  in the Vercel dashboard + redeploy before it's durable in production;
-  until then it's an honest in-memory fallback (the tool's own response
-  reports `trackable: false` and skips telling callers to check `/track`
-  when it can't actually promise that).
+  hand. Backed by Supabase/Postgres, not a key-value store — chosen to
+  match the stack the owner will actually inherit, and because it gives
+  a real table viewable in Supabase's free dashboard with no code. Still
+  needs the `bookings` table created (SQL in the file's header comment)
+  and `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` set in Vercel + redeploy
+  before it's durable in production; until then it's an honest in-memory
+  fallback (the tool's own response reports `trackable: false` and skips
+  telling callers to check `/track` when it can't actually promise that).
+  Optional free add-on: a Supabase database webhook → Make.com scenario
+  on insert, for a zero-code Slack/email ping the moment a booking lands.
 - **Real appointment booking against the shop's actual system** — the
   above is a real *shared* record now, but it's still Phone Geeks' own
   minimal store, not the shop's real intake. Two paths depending on what
@@ -361,7 +366,7 @@ built here is a legitimate starting point to grow into a real system.
   copy with nothing behind it.
 - **Lead capture / attribution** — log every call (caller info, what they
   asked about, whether it became a booking) somewhere the owner can see,
-  even just a Google Sheet via Zapier to start. This directly matters for
+  even just a Google Sheet via Make.com to start. This directly matters for
   the deal structure: proving the agent generated a lead or a sale is
   what the commission is based on, so this isn't optional polish — it's
   the receipt for the work.
@@ -406,12 +411,14 @@ built here is a legitimate starting point to grow into a real system.
   if the KB/tools are already structured cleanly, which they are.
 
 ### Tier 4 — Owner-facing polish
-- **Zapier bridge tool** — instead of hand-building every integration,
-  give the agent one generic "trigger a Zap" tool. Lets the owner wire up
-  new automations themselves later (post to Slack, add a spreadsheet row,
-  whatever) without needing more code written for them — genuinely lowers
-  the owner's dependence on ongoing dev work, which is a good-faith move
-  given the commission structure.
+- **Make.com bridge tool** — instead of hand-building every integration,
+  give the agent one generic "trigger a Make.com scenario" tool (a
+  webhook call). Lets the owner wire up new automations themselves later
+  (post to Slack, add a spreadsheet row, whatever) without needing more
+  code written for them — genuinely lowers the owner's dependence on
+  ongoing dev work, which is a good-faith move given the commission
+  structure. Also the natural home for anything Supabase's own database
+  webhooks can't cover directly.
 - **Call analytics digest** — Vapi retains call transcripts/analytics
   natively; a weekly digest of what callers actually ask about is real
   market research the owner doesn't currently have (ties to §4.7's

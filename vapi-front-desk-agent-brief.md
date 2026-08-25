@@ -261,23 +261,32 @@ Run these once the assistant is built, before treating it as done:
 - Real phone number + Vapi/Twilio number provisioning — not needed until
   this moves past demo stage.
 - **`book_mock_appointment` now writes to a real, shared store** —
-  `src/lib/booking-store.ts` (Upstash Redis, via `@upstash/redis`) —
-  instead of just `console.log`ging, and a booking made over the phone
-  really does show up trackable at `/track` via a new
-  `/api/track/[id]` lookup route. Verified the full loop by hand: book →
-  reference number → look it up on `/track` → renders through the exact
-  same `RepairStepper` UI as the 3 static demo tickets, starting at
-  "Dropped Off" (active, not checked — the caller hasn't brought the
-  device in yet, just requested the appointment).
-  - **One manual step left**: no Redis is actually provisioned on this
-    Vercel project yet. Until the Upstash (or Vercel KV) marketplace
-    integration is added in the dashboard and the project redeployed,
-    `booking-store.ts` falls back to an in-memory `Map` that resets on
-    every cold start — bookings won't reliably persist in production.
-    The tool's own response is honest about this: `trackable` in the
-    result is `false` until real Redis is configured, and the spoken
-    disclaimer only tells callers to check `/track` when it's actually
-    true.
+  `src/lib/booking-store.ts` (Supabase/Postgres, via
+  `@supabase/supabase-js`) — instead of just `console.log`ging, and a
+  booking made over the phone really does show up trackable at `/track`
+  via a new `/api/track/[id]` lookup route. Verified the full loop by
+  hand: book → reference number → look it up on `/track` → renders
+  through the exact same `RepairStepper` UI as the 3 static demo tickets,
+  starting at "Dropped Off" (active, not checked — the caller hasn't
+  brought the device in yet, just requested the appointment). Chose
+  Supabase over a key-value store on purpose: same job for this simple
+  "look up one record by reference number" need, but it's a real table
+  you can open and read in Supabase's dashboard with no code, and its
+  free tier needs no credit card.
+  - **One manual step left**: no Supabase project is wired up yet.
+    `src/lib/booking-store.ts`'s header comment has the exact SQL to
+    create the `bookings` table — run it in the Supabase SQL editor, then
+    set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in Vercel's
+    project settings and redeploy. Until then, `booking-store.ts` falls
+    back to an in-memory `Map` that resets on every cold start —
+    bookings won't reliably persist in production. The tool's own
+    response is honest about this: `trackable` in the result is `false`
+    until Supabase is configured, and the spoken disclaimer only tells
+    callers to check `/track` when it's actually true.
+  - **Optional, also free**: Supabase's database webhooks can call a
+    Make.com scenario the instant a row is inserted into `bookings` — a
+    zero-code way to get a Slack ping or email the moment the phone agent
+    books someone, without writing an integration for it.
 - Real inventory/calendar integration is the eventual endpoint (ties to
   §4.1 and §4.3 in `TODO.md`) — this brief only covers the mock/demo
   foundation.

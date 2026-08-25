@@ -1,4 +1,4 @@
-import { Redis } from "@upstash/redis";
+import { createClient } from "@supabase/supabase-js";
 
 /**
  * Persists phone-booked appointments so they can be looked up on /track —
@@ -8,18 +8,37 @@ import { Redis } from "@upstash/redis";
  * /track) run as separate requests with no shared memory of their own, so
  * this needs real storage, not a module-level variable.
  *
- * Reads either the Vercel KV marketplace integration's env vars
- * (KV_REST_API_URL/TOKEN) or plain Upstash Redis env vars
- * (UPSTASH_REDIS_REST_URL/TOKEN) — both are Upstash under the hood, this
- * just avoids caring which one was added in the Vercel dashboard.
+ * Backed by Supabase (Postgres) rather than a key-value store — same job
+ * for this narrow "look up one record by reference number" need, but a
+ * real table the owner can open and read in Supabase's dashboard without
+ * writing any code, and Supabase's free tier needs no credit card to
+ * start. Uses the service-role key since this only ever runs server-side
+ * (Next.js Route Handlers) — never expose that key to the browser.
  *
- * IMPORTANT: neither is provisioned on this project yet. Until one is
- * added (Vercel dashboard → Storage → add the Upstash/KV integration →
- * redeploy so the env vars are injected), this falls back to an in-memory
- * Map so nothing crashes — but that fallback resets on every cold start
- * and isn't shared across serverless instances, so it will NOT reliably
- * make a phone booking show up on /track in production. It's there for
- * local dev only. See TODO.md §5, Tier 1.
+ * Table setup (run once in the Supabase SQL editor):
+ *
+ *   create table bookings (
+ *     reference text primary key,
+ *     device text not null,
+ *     issue text not null,
+ *     location_slug text not null,
+ *     location_name text not null,
+ *     caller_name text not null,
+ *     callback_number text not null,
+ *     preferred_time text,
+ *     created_at timestamptz not null default now()
+ *   );
+ *
+ * Env vars needed (Vercel project settings → Environment Variables):
+ *   SUPABASE_URL              — Project Settings → API → Project URL
+ *   SUPABASE_SERVICE_ROLE_KEY — Project Settings → API → service_role key
+ *
+ * IMPORTANT: neither is configured on this project yet. Until they are,
+ * this falls back to an in-memory Map so nothing crashes — but that
+ * fallback resets on every cold start and isn't shared across serverless
+ * instances, so it will NOT reliably make a phone booking show up on
+ * /track in production. It's there for local dev only. See TODO.md §5,
+ * Tier 1.
  */
 
 export interface PhoneBooking {
@@ -34,33 +53,73 @@ export interface PhoneBooking {
   createdAt: string;
 }
 
-const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
-const token = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+const url = process.env.SUPABASE_URL;
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const redis = url && token ? new Redis({ url, token }) : null;
+const supabase = url && key ? createClient(url, key) : null;
 
-if (!redis) {
+if (!supabase) {
   console.warn(
-    "[booking-store] No Redis configured (KV_REST_API_URL/TOKEN or " +
-      "UPSTASH_REDIS_REST_URL/TOKEN). Falling back to an in-memory store " +
-      "that will NOT persist in production. Add the Upstash/KV integration " +
-      "in the Vercel dashboard and redeploy."
+    "[booking-store] No Supabase configured (SUPABASE_URL / " +
+      "SUPABASE_SERVICE_ROLE_KEY). Falling back to an in-memory store " +
+      "that will NOT persist in production. Create the `bookings` table " +
+      "(see this file's header comment) and set the env vars in Vercel."
   );
 }
 
 // Local-dev-only fallback. Not durable — see warning above.
 const memoryStore = new Map<string, PhoneBooking>();
 
-const KEY_PREFIX = "pg:booking:";
-
 function normalizeReference(reference: string): string {
   return reference.trim().toUpperCase();
 }
 
+/** snake_case row shape as stored in Postgres. */
+interface BookingRow {
+  reference: string;
+  device: string;
+  issue: string;
+  location_slug: string;
+  location_name: string;
+  caller_name: string;
+  callback_number: string;
+  preferred_time: string | null;
+  created_at: string;
+}
+
+function toRow(booking: PhoneBooking): BookingRow {
+  return {
+    reference: normalizeReference(booking.reference),
+    device: booking.device,
+    issue: booking.issue,
+    location_slug: booking.locationSlug,
+    location_name: booking.locationName,
+    caller_name: booking.callerName,
+    callback_number: booking.callbackNumber,
+    preferred_time: booking.preferredTime ?? null,
+    created_at: booking.createdAt,
+  };
+}
+
+function fromRow(row: BookingRow): PhoneBooking {
+  return {
+    reference: row.reference,
+    device: row.device,
+    issue: row.issue,
+    locationSlug: row.location_slug,
+    locationName: row.location_name,
+    callerName: row.caller_name,
+    callbackNumber: row.callback_number,
+    preferredTime: row.preferred_time ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
 export async function saveBooking(booking: PhoneBooking): Promise<void> {
   const key = normalizeReference(booking.reference);
-  if (redis) {
-    await redis.set(`${KEY_PREFIX}${key}`, booking);
+  if (supabase) {
+    const { error } = await supabase.from("bookings").insert(toRow(booking));
+    if (error) throw new Error(`Supabase insert failed: ${error.message}`);
   } else {
     memoryStore.set(key, booking);
   }
@@ -68,14 +127,19 @@ export async function saveBooking(booking: PhoneBooking): Promise<void> {
 
 export async function getBooking(reference: string): Promise<PhoneBooking | null> {
   const key = normalizeReference(reference);
-  if (redis) {
-    const result = await redis.get<PhoneBooking>(`${KEY_PREFIX}${key}`);
-    return result ?? null;
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("*")
+      .eq("reference", key)
+      .maybeSingle();
+    if (error) throw new Error(`Supabase lookup failed: ${error.message}`);
+    return data ? fromRow(data as BookingRow) : null;
   }
   return memoryStore.get(key) ?? null;
 }
 
-/** True once real (Redis-backed) persistence is configured. */
+/** True once real (Supabase-backed) persistence is configured. */
 export function isBookingStoreDurable(): boolean {
-  return redis !== null;
+  return supabase !== null;
 }
