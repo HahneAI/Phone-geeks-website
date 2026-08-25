@@ -288,3 +288,121 @@ Even though none of this is being built now, it's a legitimate answer to
 underneath it that a small shop like this actually needs more than another
 redesign. Worth having the ranked list (§4.1 → §4.2 → the rest) ready as a
 talking point rather than a vague "AI could help with a lot of things."
+
+---
+
+## 5. Vapi Phone Agent — Hardening & Integration Roadmap
+
+This is now a real deliverable, not a portfolio exhibit — the AI phone
+caller is priority #1 for the Phone Geeks engagement. This section is the
+path from "answers calls with mock data" to "actually running the front
+desk," organized so the highest-ROI, lowest-effort items come first.
+
+**Open assumption to validate with the owner before building further:**
+the brief mentions phone/computer/tablet/console repair, buyback, and
+refurb retail — it does not mention carrier/SIM/plan sales ("phone
+service"). If Phone Geeks does sell that, several items below (activation
+lookups, carrier APIs) apply directly; if not, drop them. Don't assume —
+ask.
+
+**Also worth asking early:** does the shop already run repair-specific
+software — RepairShopr or RepairDesk are the two dominant platforms in
+this space, both with a real REST API and Zapier support (confirmed via
+research, not assumed). If they're on one of these already, that changes
+everything below — real inventory, real ticketing, and real customer
+records already exist and the right move is integrating with them
+directly rather than building parallel mock systems further. If they're
+running on paper/spreadsheets/nothing, the mock-data foundation already
+built here is a legitimate starting point to grow into a real system.
+
+### Tier 0 — Reliability hardening (do before this takes real call volume)
+- [x] Payload-shape normalization (`src/lib/vapi.ts`) — a real call already
+  caught one crash; fixed.
+- [x] Shared-secret auth (`VAPI_TOOL_SECRET`) on all three tool routes.
+- [ ] Rate limiting on the tool endpoints — nothing stops abuse once the
+  URL is known, even with the secret (a leaked secret shouldn't mean
+  unlimited requests).
+- [ ] Structured logging/alerting on tool errors — right now failures only
+  show up in Vercel's function logs; worth a lightweight alert (even just
+  an email/Slack ping) so a broken tool during a real call gets noticed
+  same-day, not discovered a week later.
+- [ ] Spam/robocall handling — decide whether Vapi's number screens for
+  known spam callers, or whether that needs a separate check, so the
+  agent (and the owner's minutes) aren't burned on robocalls.
+- [ ] Explicit timeout/fallback behavior if a tool call is slow or the
+  site itself is down — the agent should degrade to "let me have someone
+  call you back" rather than going silent.
+
+### Tier 1 — Real business operations (the actual point of the agent)
+- **Real appointment booking**, replacing `book_mock_appointment`'s mock
+  reference number. Two paths depending on what the shop uses:
+  - If they use RepairShopr/RepairDesk/similar: call that platform's API
+    directly to create a real ticket — the agent's booking *is* the
+    shop's real intake, no parallel system needed.
+  - If not: Google Calendar API (one calendar per location) is the
+    lowest-effort real option — checks actual open slots instead of just
+    collecting a stated preference.
+- **Real SMS confirmations** — Vapi supports sending SMS natively during
+  or after a call (no separate Twilio integration needed, confirmed via
+  Vapi's own docs). Use it for the booking confirmation and the "text me
+  when it's ready" opt-in already mocked on `/track`.
+- **Real email** — swap Resend (or similar) in for the Estimate wizard's
+  and phone agent's "we'll email you" messaging, which is currently just
+  copy with nothing behind it.
+- **Lead capture / attribution** — log every call (caller info, what they
+  asked about, whether it became a booking) somewhere the owner can see,
+  even just a Google Sheet via Zapier to start. This directly matters for
+  the deal structure: proving the agent generated a lead or a sale is
+  what the commission is based on, so this isn't optional polish — it's
+  the receipt for the work.
+
+### Tier 2 — Repair-shop-specific integrations
+- **RepairShopr/RepairDesk API** (if applicable, see assumption above) —
+  real inventory counts replacing `retail-data.ts`, real repair status
+  replacing `tracker-data.ts`, real ticket creation replacing the mock
+  booking. This one integration would make almost every demo page on the
+  site real instead of mock, in one move.
+- **IMEI / blacklist check** for buyback and trade-in — before offering
+  cash for a device, verify it isn't reported lost/stolen or carrier-
+  locked, via an IMEI lookup API. Protects the shop from a bad buy and
+  gives the phone agent something concrete to check mid-call ("let me
+  verify that IMEI before I confirm a price").
+- **Live trade-in valuation** — right now buyback pricing would be static
+  if built at all; a real resale-market pricing feed (or even a simple
+  internal price sheet the owner updates) keeps buyback offers accurate
+  as device values shift.
+
+### Tier 3 — Differentiation / value-add
+- **Outbound reminder & re-engagement calls** — Vapi supports scheduled
+  outbound calls natively. Two concrete uses: "your repair is ready for
+  pickup" reminders (cuts down on devices sitting unclaimed), and a
+  follow-up call to someone who got a quote but never booked (this is
+  the "score a sale" case directly — a quoted-but-not-booked lead is
+  exactly what commission should be paid on if the agent closes it).
+- **Live call transfer** — Vapi supports warm transfer with call context
+  handed to the receiving person. Route to a real person immediately for
+  anything the guardrails already flag (complaints, urgent issues,
+  out-of-scope asks) instead of just apologizing and hanging up.
+- **Hours-aware routing** — the site already computes real open/closed
+  status per location (`src/lib/locations.ts`); the phone agent should
+  use the same logic to decide "offer a live transfer" vs. "take a
+  message" instead of guessing.
+- **Google Business Profile integration** — pull real review count/rating
+  into the agent's answers instead of the hardcoded "5.0★" on the
+  homepage, and trigger a review request after a completed repair (ties
+  to §4.5's review-response agent — this is the review-*request* half).
+- **Spanish-language support** — Vapi supports multilingual assistants;
+  worth considering given the St. Louis metro's demographics. Low effort
+  if the KB/tools are already structured cleanly, which they are.
+
+### Tier 4 — Owner-facing polish
+- **Zapier bridge tool** — instead of hand-building every integration,
+  give the agent one generic "trigger a Zap" tool. Lets the owner wire up
+  new automations themselves later (post to Slack, add a spreadsheet row,
+  whatever) without needing more code written for them — genuinely lowers
+  the owner's dependence on ongoing dev work, which is a good-faith move
+  given the commission structure.
+- **Call analytics digest** — Vapi retains call transcripts/analytics
+  natively; a weekly digest of what callers actually ask about is real
+  market research the owner doesn't currently have (ties to §4.7's
+  ops-digest idea, phone-specific).
