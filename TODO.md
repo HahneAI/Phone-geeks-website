@@ -13,6 +13,12 @@ tracks build status and the ideas we've floated on top of it.
 - [x] Layout shell: sticky nav w/ mobile menu, footer w/ real sitemap + locations
 - [x] Home page: hero, repair-type strip, services grid, testimonial carousel, warranty section, CTA banner
 - [x] Vercel deploy prep (build verified, engines pinned, no stray deps)
+- [x] Vercel Analytics + Speed Insights (`@vercel/analytics`,
+  `@vercel/speed-insights`, mounted in the root layout) — free on the
+  Hobby plan, zero config beyond being in the tree. Once deployed, traffic
+  and Core Web Vitals show up automatically in the Vercel dashboard — no
+  env vars, no setup step for the owner. Feeds directly into §6's
+  management dashboard planning below.
 
 ### Up next (core sitemap, from the original brief)
 - [x] **Services page** — detailed breakdown per repair type, with mock pricing/turnaround per category and a jump-nav
@@ -423,3 +429,74 @@ built here is a legitimate starting point to grow into a real system.
   natively; a weekly digest of what callers actually ask about is real
   market research the owner doesn't currently have (ties to §4.7's
   ops-digest idea, phone-specific).
+
+---
+
+## 6. Owner Management Dashboard — Planning (not built yet)
+
+The idea: a single, low-key "Management" link in the site footer that
+gateways to a private dashboard aggregating everything built across this
+whole engagement — website traffic, phone agent activity, and demo/tool
+usage — in one place. This is what actually proves the value the
+commission structure is based on, rather than the owner having to piece
+it together from four different tools (or take it on faith).
+
+**This is a plan, not a build** — the security question below has to be
+answered before a link like this goes anywhere near the live footer, and
+it's not answered yet.
+
+### What it would show
+- **Site health** — traffic and Core Web Vitals, straight from Vercel
+  Analytics/Speed Insights (§1, just added).
+- **Phone agent activity** — call volume, what callers actually asked
+  about, how many turned into a booking. Source: Vapi's call
+  logs/transcripts, plus a straight count query against Supabase's
+  `bookings` table (§5 Tier 1) for "how many real appointments has Casey
+  booked." This is the single most important number for the deal
+  structure — it's the receipt for "the agent generated a lead or a
+  sale."
+- **Demo/tool engagement** — how often `/diagnose`, `/track`, and
+  `/retail` actually get used. Nothing currently logs this (they're pure
+  client-side interactions with no analytics event today) — would need a
+  handful of `track()` calls via the Vercel Analytics package already
+  installed (it supports custom events, not just page views) rather than
+  a new system.
+- **Lead capture**, once §5 Tier 1's attribution logging exists — same
+  place this dashboard would read from.
+
+### Open question: how is this actually secured?
+A public link labeled "Management" in the footer of a live marketing
+site is a real exposure risk the moment there's anything behind it worth
+looking at — this can't just be an unauthenticated route. Two options,
+roughly in order of effort:
+1. **v1 — simple password gate.** A single shared password in an env var
+   (`MANAGEMENT_PASSWORD`), checked server-side, sets a signed cookie on
+   success. Fast to build, zero new infrastructure, fine for "one owner,
+   one password" — but it's a shared secret, not a real account, and
+   doesn't scale past that.
+2. **v2 — real auth via Supabase Auth.** Already in the stack for the
+   booking store (§5), and its free tier includes email/password or
+   magic-link auth. One real owner account instead of a shared password.
+   Worth doing once this is more than a proof-of-concept, not necessary
+   for the first version.
+
+Leaning toward v1 to start, given the "free until proven" framing — it's
+enough to demo the concept honestly, and upgrading to v2 later doesn't
+touch anything else (no data model changes, just swaps the gate).
+
+### Open question: is Vercel Analytics data actually pullable for free?
+The dashboard's own Vercel tab is free on Hobby — but whether the *data
+itself* is accessible via API for embedding into a custom page (rather
+than just viewed in Vercel's UI) may require a paid plan. Needs
+verifying against Vercel's current pricing before promising this tile
+exists in v1 — if it's not available free, the management page can still
+deep-link out to Vercel's own dashboard for that section rather than
+faking it.
+
+### Rough shape, once built
+`/management` route, password-gated (v1) or Supabase-Auth-gated (v2),
+with a handful of stat cards pulling from Supabase (bookings count, demo
+tool events) plus either embedded or linked-out Vercel/Vapi views for
+the pieces that live in those platforms' own dashboards. Footer link is
+deliberately plain/unstyled — this isn't a customer-facing feature, it
+shouldn't look like one.
