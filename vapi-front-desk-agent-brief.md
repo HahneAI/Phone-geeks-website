@@ -98,9 +98,19 @@ These are **real server tools now, not just schemas** — Next.js API
 routes at `src/app/api/vapi/*` that read the exact same
 `src/lib/*-data.ts` files as `/retail`, `/estimate`, and `/diagnose`, so
 the phone agent can never answer differently than the website. All three
-were verified against Vapi's actual request/response contract (confirmed
-from Vapi's docs, not assumed):
-- Vapi POSTs `{ message: { type: "tool-calls", toolCallList: [{ id, name, arguments }] } }`.
+were verified against Vapi's actual request/response contract:
+- Vapi POSTs `{ message: { type: "tool-calls", toolCallList: [...] } }`.
+  **The shape of each entry isn't fully consistent in practice** — Vapi's
+  docs show a flat `{ id, name, arguments }`, but a real test call
+  (screenshot from the live Vapi dashboard) arrived nested instead, as
+  `{ id, type: "function", function: { name, arguments } }`, with
+  `arguments` sometimes an object and sometimes a JSON string. Coding only
+  against the flat docs example threw `Cannot destructure property
+  'item_name' of 'e.arguments' as it is undefined` on the real call.
+  `src/lib/vapi.ts`'s `normalizeToolCall()` now handles every variant
+  seen so far (flat or nested, object or string arguments, or missing
+  entirely) before a route handler ever sees it — and logs a warning
+  rather than throwing if a future payload shape still doesn't match.
 - The server must respond `{ results: [{ toolCallId, result }] }`, in the
   same order, with `toolCallId` matching the request's `id` exactly.
 - The endpoint **must return HTTP 200 even on a handled error** — any
@@ -132,7 +142,10 @@ from the runtime request/response format above:
       "required": ["item_name", "location"]
     }
   },
-  "server": { "url": "https://YOUR-DEPLOYMENT.vercel.app/api/vapi/stock" }
+  "server": {
+    "url": "https://YOUR-DEPLOYMENT.vercel.app/api/vapi/stock",
+    "headers": { "x-vapi-tool-secret": "YOUR_SECRET" }
+  }
 }
 ```
 
@@ -152,7 +165,10 @@ from the runtime request/response format above:
       "required": ["device_category", "issue"]
     }
   },
-  "server": { "url": "https://YOUR-DEPLOYMENT.vercel.app/api/vapi/estimate" }
+  "server": {
+    "url": "https://YOUR-DEPLOYMENT.vercel.app/api/vapi/estimate",
+    "headers": { "x-vapi-tool-secret": "YOUR_SECRET" }
+  }
 }
 ```
 
@@ -176,7 +192,10 @@ from the runtime request/response format above:
       "required": ["device", "issue", "location", "caller_name", "callback_number"]
     }
   },
-  "server": { "url": "https://YOUR-DEPLOYMENT.vercel.app/api/vapi/book-appointment" }
+  "server": {
+    "url": "https://YOUR-DEPLOYMENT.vercel.app/api/vapi/book-appointment",
+    "headers": { "x-vapi-tool-secret": "YOUR_SECRET" }
+  }
 }
 ```
 
@@ -231,15 +250,43 @@ Run these once the assistant is built, before treating it as done:
   the public internet, so `localhost` won't work. Swap
   `YOUR-DEPLOYMENT.vercel.app` above for the real Vercel URL once
   deployed, and re-run the test call scenarios in §6 against it.
-- No auth on these routes yet — fine for a demo, but before this is a
-  real phone number taking real calls, add a shared-secret header check
-  (e.g. `x-vapi-secret`) so nothing but Vapi can hit them.
+- **Auth is built, just needs turning on.** Set a `VAPI_TOOL_SECRET` env
+  var on the Vercel project (any random string), and put the same value
+  in each tool's `server.headers.x-vapi-tool-secret` in Vapi's dashboard
+  (already shown in the JSON above) — the routes reject anything else
+  with a 401. Leaving `VAPI_TOOL_SECRET` unset keeps the routes open,
+  which is what they've been through the demo/testing phase so far.
+  Verified both states (secret set + correct header → works, secret set
+  + wrong/missing header → 401, secret unset → open) by hand.
 - Real phone number + Vapi/Twilio number provisioning — not needed until
   this moves past demo stage.
-- Whether `book_mock_appointment` should actually write into the site's
-  existing mock ticket data (`src/lib/tracker-data.ts`) so a booked call
-  shows up trackable at `/track` — nice full-circle demo moment, not yet
-  built (it currently only `console.log`s the booking).
+- **`book_mock_appointment` now writes to a real, shared store** —
+  `src/lib/booking-store.ts` (Supabase/Postgres, via
+  `@supabase/supabase-js`) — instead of just `console.log`ging, and a
+  booking made over the phone really does show up trackable at `/track`
+  via a new `/api/track/[id]` lookup route. Verified the full loop by
+  hand: book → reference number → look it up on `/track` → renders
+  through the exact same `RepairStepper` UI as the 3 static demo tickets,
+  starting at "Dropped Off" (active, not checked — the caller hasn't
+  brought the device in yet, just requested the appointment). Chose
+  Supabase over a key-value store on purpose: same job for this simple
+  "look up one record by reference number" need, but it's a real table
+  you can open and read in Supabase's dashboard with no code, and its
+  free tier needs no credit card.
+  - **One manual step left**: no Supabase project is wired up yet.
+    `src/lib/booking-store.ts`'s header comment has the exact SQL to
+    create the `bookings` table — run it in the Supabase SQL editor, then
+    set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in Vercel's
+    project settings and redeploy. Until then, `booking-store.ts` falls
+    back to an in-memory `Map` that resets on every cold start —
+    bookings won't reliably persist in production. The tool's own
+    response is honest about this: `trackable` in the result is `false`
+    until Supabase is configured, and the spoken disclaimer only tells
+    callers to check `/track` when it's actually true.
+  - **Optional, also free**: Supabase's database webhooks can call a
+    Make.com scenario the instant a row is inserted into `bookings` — a
+    zero-code way to get a Slack ping or email the moment the phone agent
+    books someone, without writing an integration for it.
 - Real inventory/calendar integration is the eventual endpoint (ties to
   §4.1 and §4.3 in `TODO.md`) — this brief only covers the mock/demo
   foundation.

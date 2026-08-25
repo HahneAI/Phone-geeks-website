@@ -37,10 +37,13 @@ function resolveLocations(location: unknown): string[] {
 
 function checkStock(call: VapiToolCall) {
   const { item_name, location } = call.arguments;
-  const item = findItem(String(item_name ?? ""));
+  const query = String(item_name ?? "").trim();
+  const item = findItem(query);
 
   if (!item) {
-    return `I couldn't find a demo catalog match for "${item_name}". We carry refurbished iPhones, Galaxy phones, an iPad, and accessories like chargers, screen protectors, and cases — could you say the item again?`;
+    return query
+      ? `I couldn't find a demo catalog match for "${query}". We carry refurbished iPhones, Galaxy phones, an iPad, and accessories like chargers, screen protectors, and cases — could you say the item again?`
+      : "I didn't catch which item you're asking about — could you say the product name again?";
   }
 
   const breakdown = resolveLocations(location).map((slug) => {

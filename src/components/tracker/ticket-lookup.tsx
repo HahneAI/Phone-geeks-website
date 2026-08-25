@@ -1,31 +1,55 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Search, MapPin, Bell, CheckCircle2 } from "lucide-react";
+import { Search, MapPin, Bell, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { DEMO_TICKETS, TRACKER_STEPS } from "@/lib/tracker-data";
+import { DEMO_TICKETS, TRACKER_STEPS, type DemoTicket } from "@/lib/tracker-data";
 import { RepairStepper } from "./repair-stepper";
 
 export function TicketLookup() {
   const [query, setQuery] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [liveTicket, setLiveTicket] = useState<DemoTicket | null>(null);
+  const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [notifyMe, setNotifyMe] = useState(false);
 
-  const ticket = DEMO_TICKETS.find(
+  const demoTicket = DEMO_TICKETS.find(
     (t) => t.id.toLowerCase() === activeId?.toLowerCase()
   );
+  const ticket = demoTicket ?? liveTicket ?? undefined;
 
-  function lookup(id: string) {
+  async function lookup(id: string) {
     const trimmed = id.trim();
     if (!trimmed) return;
-    const found = DEMO_TICKETS.some(
+
+    setActiveId(trimmed);
+    setLiveTicket(null);
+    setNotFound(false);
+
+    const isDemoTicket = DEMO_TICKETS.some(
       (t) => t.id.toLowerCase() === trimmed.toLowerCase()
     );
-    setActiveId(trimmed);
-    setNotFound(!found);
+    if (isDemoTicket) return;
+
+    // Not one of the 3 demo tickets — check for a real phone-booked
+    // appointment (src/app/api/vapi/book-appointment writes these).
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/track/${encodeURIComponent(trimmed)}`);
+      const data = await res.json();
+      if (data.found) {
+        setLiveTicket(data.ticket);
+      } else {
+        setNotFound(true);
+      }
+    } catch {
+      setNotFound(true);
+    } finally {
+      setLoading(false);
+    }
   }
 
   function handleSubmit(e: FormEvent) {
@@ -71,19 +95,26 @@ export function TicketLookup() {
         </div>
       </Card>
 
-      {notFound && (
+      {loading && (
+        <Card className="mt-6 p-6 text-center text-sm text-muted-foreground">
+          <Loader2 className="mx-auto h-5 w-5 animate-spin text-brand-red" />
+          <p className="mt-2">Checking for your ticket…</p>
+        </Card>
+      )}
+
+      {!loading && notFound && (
         <Card className="mt-6 p-6 text-center">
           <p className="font-medium text-brand-navy">
             We couldn&rsquo;t find a ticket with that number.
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            This is a demo — try one of the sample tickets above, or give a
-            shop a call and we&rsquo;ll look yours up directly.
+            Try one of the sample tickets above, or give a shop a call and
+            we&rsquo;ll look yours up directly.
           </p>
         </Card>
       )}
 
-      {ticket && (
+      {!loading && ticket && (
         <Card className="mt-6 p-6 sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
