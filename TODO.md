@@ -166,9 +166,17 @@ doesn't get lost, and because it's exactly the kind of thing worth having
 an opinion on when talking to a small-business owner about where a website
 project could grow into. Grouped by what they'd actually replace or augment.
 
-### 4.1 AI Phone Answering Agent
+### 4.1 AI Phone Answering Agent — Vapi starting brief written
 The highest-leverage one for a shop like this — a lot of repair-shop call
 volume is the same five questions repeated all day.
+- **`vapi-front-desk-agent-brief.md`** (repo root) has the actual starting
+  prompt for Vapi's assistant-from-a-prompt composer, plus the tool
+  schemas (`check_stock`, `get_repair_estimate`, `book_mock_appointment`),
+  knowledge base content, and test call scenarios for a first pass:
+  FAQ + stock-aware answers + a mock appointment booking flow. All of it
+  is pulled from the site's own `src/lib/*-data.ts` files rather than
+  re-authored, so the phone agent and the website answer identically.
+  Not yet built/provisioned — this is the spec, not a live number.
 - Handles "are you open," "how much to fix a cracked screen," "is my phone
   ready," warranty questions — pulled from the same FAQ/pricing data already
   in `services-data.ts` and `faq-data.ts` so the agent and the website never
