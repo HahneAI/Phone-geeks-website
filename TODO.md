@@ -166,17 +166,30 @@ doesn't get lost, and because it's exactly the kind of thing worth having
 an opinion on when talking to a small-business owner about where a website
 project could grow into. Grouped by what they'd actually replace or augment.
 
-### 4.1 AI Phone Answering Agent — Vapi starting brief written
+### 4.1 AI Phone Answering Agent — tools + KB built, not yet a live number
 The highest-leverage one for a shop like this — a lot of repair-shop call
 volume is the same five questions repeated all day.
-- **`vapi-front-desk-agent-brief.md`** (repo root) has the actual starting
-  prompt for Vapi's assistant-from-a-prompt composer, plus the tool
-  schemas (`check_stock`, `get_repair_estimate`, `book_mock_appointment`),
-  knowledge base content, and test call scenarios for a first pass:
-  FAQ + stock-aware answers + a mock appointment booking flow. All of it
-  is pulled from the site's own `src/lib/*-data.ts` files rather than
-  re-authored, so the phone agent and the website answer identically.
-  Not yet built/provisioned — this is the spec, not a live number.
+- **`vapi-front-desk-agent-brief.md`** (repo root) has the starting prompt
+  for Vapi's assistant-from-a-prompt composer, the real tool definitions
+  (Vapi's actual dashboard JSON, not a sketch), knowledge base pointer,
+  and test call scenarios.
+- **The three tools are real, deployed API routes**, not just schemas:
+  `src/app/api/vapi/{stock,estimate,book-appointment}/route.ts`. Each
+  reads the exact same `src/lib/*-data.ts` files as `/retail`,
+  `/estimate`, and `/diagnose`, so the phone agent can't answer
+  differently than the website. Verified against Vapi's actual
+  request/response contract (`message.toolCallList` in, `{results:
+  [{toolCallId, result}]}` out, always HTTP 200) by curling the real
+  request shape — fuzzy item/symptom matching, multi-call batching, and
+  graceful no-match/missing-field replies all confirmed working.
+- **`vapi-knowledge-base.md`** (repo root) is upload-ready as-is — no
+  per-repair pricing in it on purpose, since that comes from the
+  `get_repair_estimate` tool instead so it can't drift from the site.
+- Still open: these routes only work once deployed (Vapi needs a public
+  URL, not localhost); no auth on them yet (fine for a demo, add a
+  shared-secret header before this is a real phone number); and
+  `book_mock_appointment` only `console.log`s the booking rather than
+  writing into `/track`'s ticket data — see brief §7 for both.
 - Handles "are you open," "how much to fix a cracked screen," "is my phone
   ready," warranty questions — pulled from the same FAQ/pricing data already
   in `services-data.ts` and `faq-data.ts` so the agent and the website never
