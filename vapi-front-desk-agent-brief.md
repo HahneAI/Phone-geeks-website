@@ -98,9 +98,19 @@ These are **real server tools now, not just schemas** — Next.js API
 routes at `src/app/api/vapi/*` that read the exact same
 `src/lib/*-data.ts` files as `/retail`, `/estimate`, and `/diagnose`, so
 the phone agent can never answer differently than the website. All three
-were verified against Vapi's actual request/response contract (confirmed
-from Vapi's docs, not assumed):
-- Vapi POSTs `{ message: { type: "tool-calls", toolCallList: [{ id, name, arguments }] } }`.
+were verified against Vapi's actual request/response contract:
+- Vapi POSTs `{ message: { type: "tool-calls", toolCallList: [...] } }`.
+  **The shape of each entry isn't fully consistent in practice** — Vapi's
+  docs show a flat `{ id, name, arguments }`, but a real test call
+  (screenshot from the live Vapi dashboard) arrived nested instead, as
+  `{ id, type: "function", function: { name, arguments } }`, with
+  `arguments` sometimes an object and sometimes a JSON string. Coding only
+  against the flat docs example threw `Cannot destructure property
+  'item_name' of 'e.arguments' as it is undefined` on the real call.
+  `src/lib/vapi.ts`'s `normalizeToolCall()` now handles every variant
+  seen so far (flat or nested, object or string arguments, or missing
+  entirely) before a route handler ever sees it — and logs a warning
+  rather than throwing if a future payload shape still doesn't match.
 - The server must respond `{ results: [{ toolCallId, result }] }`, in the
   same order, with `toolCallId` matching the request's `id` exactly.
 - The endpoint **must return HTTP 200 even on a handled error** — any
