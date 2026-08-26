@@ -30,6 +30,17 @@ const ASSISTANT_ID = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
 export const isVoiceAgentConfigured = Boolean(PUBLIC_KEY && ASSISTANT_ID);
 
 /**
+ * Raw values for anything else that needs to talk to Vapi directly with the
+ * same credentials (e.g. the floating chat widget in
+ * vapi-chat-widget.tsx) — kept here so there's exactly one place reading
+ * these two env vars, instead of every consumer calling process.env itself.
+ * Safe to pass around: these are the same public-key/assistant-id pair
+ * already exposed to the browser by the header call widget above.
+ */
+export const vapiPublicKey = PUBLIC_KEY;
+export const vapiAssistantId = ASSISTANT_ID;
+
+/**
  * Non-secret diagnostic snapshot of what this build actually has baked in —
  * lets `?debug=1` on the header widget show *why* isVoiceAgentConfigured is
  * false instead of silently falling back, without ever printing the full

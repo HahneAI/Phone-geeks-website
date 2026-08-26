@@ -467,21 +467,44 @@ built here is a legitimate starting point to grow into a real system.
   - "Prefer a person? Call ###" is always visible in every non-active
     panel state — the AI option never strands someone without a real
     human fallback.
-- **Chat widget with chat-to-call handoff** — researched, not built.
-  Vapi has two separate real products that could combine for this: the
-  Web SDK used above (voice-first, and its `send()` method can inject
-  text messages into a *live* voice session) and a newer, separate Chat
-  API (OpenAI-compatible text endpoint using the same assistant config).
-  Could not confirm from official docs that Vapi ships a single packaged
-  widget that auto-carries a text conversation into a voice call with
-  shared context — `docs.vapi.ai` is blocked from this sandbox, so this
-  is based on secondhand search results and the SDK's GitHub README, not
-  the actual widget docs. Best next step before building: read
-  `docs.vapi.ai/chat/web-widget` directly (not blocked outside this
-  sandbox) to confirm the real mechanism, likely either (a) a genuine
-  built-in handoff, or (b) something we'd assemble ourselves — run the
-  Chat API for text, then start a Web SDK call seeded with the chat
-  transcript as context when the user asks to switch to voice.
+- [x] **Floating chat + voice widget** (`src/components/layout/vapi-chat-widget.tsx`)
+  — the official `@vapi-ai/client-sdk-react` `<VapiWidget>` component,
+  `mode="hybrid"`, mounted once in the root layout so it's on every page.
+  Bottom-left (not bottom-right, to avoid stacking with the header
+  widget's `FloatingCallBar`), styled with the site's brand colors, custom
+  first message/placeholder copy. Reuses the exact same
+  `NEXT_PUBLIC_VAPI_PUBLIC_KEY` / `NEXT_PUBLIC_VAPI_ASSISTANT_ID` env vars
+  as the header widget (via new `vapiPublicKey`/`vapiAssistantId` exports
+  in `use-vapi-call.ts`) — no new config needed. Renders nothing if those
+  aren't set, same honest-fallback pattern as the header widget.
+  - **Continuity note (verified against the package's shipped `.d.ts`
+    types and README, since `docs.vapi.ai` is still blocked from this
+    sandbox):** `mode="hybrid"` lets a visitor switch between text and
+    voice in one widget UI, but neither the docs nor the types say a
+    voice call shares the same session/transcript as the chat before it.
+    The widget's copy says "switch to a voice call," never "continue this
+    conversation by voice," on purpose — a real shared-context bridge
+    would need a server-side piece (this site's backend passing the chat
+    transcript into the voice call's `assistantOverrides` via Vapi's
+    *private* key) and isn't built.
+  - **Open product question, not decided here:** there are now two
+    independent ways to start a real voice call on the site (this widget,
+    and the header "Call Now" button) that don't share call state with
+    each other — someone could open both and start two simultaneously
+    billed calls. Worth deciding whether to keep both, or point this
+    widget's voice button at the header's shared call session instead.
+  - Verified: builds/lints/typechecks clean with and without the env vars
+    set; manually tested in a real browser (Playwright, dummy key) —
+    floating launcher renders correctly on desktop and mobile, panel opens
+    with hybrid text+voice controls, no console errors, no horizontal
+    overflow on mobile. Not tested against a real Vapi key/live call.
+  - Analytics: wired the widget's `onVoiceStart`/`onVoiceEnd`/`onError`
+    callbacks to `@vercel/analytics`'s `track()` (already in use
+    site-wide) as `voice_call_connected` / `voice_call_ended` /
+    `voice_call_failed`. Did **not** add `chat_widget_opened` or
+    `text_message_started` — the widget's `onMessage` callback is typed
+    `any` with no documented payload shape, and guessing at one risked
+    silently-wrong analytics rather than an honest gap.
 
 ---
 
