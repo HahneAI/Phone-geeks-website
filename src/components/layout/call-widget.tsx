@@ -51,6 +51,7 @@ function useDebugMode() {
  * handlers for the grip handle. Pointer Events cover mouse + touch alike. */
 function useDraggable() {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
   const dragState = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(
     null
   );
@@ -58,6 +59,7 @@ function useDraggable() {
   function onPointerDown(e: ReactPointerEvent<HTMLButtonElement>) {
     e.currentTarget.setPointerCapture(e.pointerId);
     dragState.current = { startX: e.clientX, startY: e.clientY, baseX: offset.x, baseY: offset.y };
+    setDragging(true);
   }
   function onPointerMove(e: ReactPointerEvent<HTMLButtonElement>) {
     if (!dragState.current) return;
@@ -67,9 +69,10 @@ function useDraggable() {
   }
   function onPointerUp() {
     dragState.current = null;
+    setDragging(false);
   }
 
-  return { offset, onPointerDown, onPointerMove, onPointerUp };
+  return { offset, dragging, onPointerDown, onPointerMove, onPointerUp };
 }
 
 interface CallWidgetProps {
@@ -97,9 +100,20 @@ export function CallWidget({ call, className, buttonClassName, iconOnly }: CallW
   const { status, muted, assistantSpeaking, errorMessage, debugDetail, elapsed, start, stop, toggleMute, reset } =
     call;
 
-  // The panel is portaled to <body> (position: fixed) rather than nested
-  // under the button, since the mobile menu it can live inside uses
-  // overflow-hidden for its collapse animation and would otherwise clip it.
+  // Once the call actually connects, hand off from this popup to the
+  // FloatingCallBar automatically — the popup no longer requires an
+  // explicit close (a click on the new drag toolbar was closing it only
+  // as a side effect of the outside-click-to-dismiss listener below).
+  useEffect(() => {
+    if (status !== "active") return;
+    const t = setTimeout(() => setOpen(false), 900);
+    return () => clearTimeout(t);
+  }, [status]);
+
+  // The panel's position is recalculated whenever it opens — it's portaled
+  // to <body> (position: fixed) rather than nested under the button, since
+  // the mobile menu it can live inside uses overflow-hidden for its
+  // collapse animation and would otherwise clip it.
   useEffect(() => {
     if (!open) return;
 
@@ -205,11 +219,15 @@ export function CallWidget({ call, className, buttonClassName, iconOnly }: CallW
         )}
       </button>
 
-      {open && mounted && createPortal(
+      {mounted && createPortal(
         <div
           ref={panelRef}
-          style={{ top: coords.top, right: coords.right }}
-          className="fixed z-50 w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-border bg-white p-5 text-left shadow-xl"
+          inert={!open}
+          style={{ top: coords.top, right: coords.right, pointerEvents: open ? "auto" : "none" }}
+          className={cn(
+            "fixed z-50 w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-border bg-white p-5 text-left shadow-xl transition-all duration-200 ease-out",
+            open ? "translate-y-0 scale-100 opacity-100" : "-translate-y-2 scale-95 opacity-0"
+          )}
         >
           <button
             type="button"
@@ -347,12 +365,24 @@ export function FloatingCallBar({ call }: { call: VapiCall }) {
   const mounted = useMounted();
   const drag = useDraggable();
   const { status, muted, assistantSpeaking, elapsed, toggleMute, stop } = call;
+  const activeNow = status === "active";
 
-  if (!mounted || status !== "active") return null;
+  if (!mounted) return null;
 
+  // Always portal-mounted (once on the client) rather than conditionally
+  // rendered on `activeNow` — visibility is purely a CSS transition on
+  // opacity/transform, so there's no unmount-timing to get right for the
+  // exit animation, and the drag offset + enter/exit transform can share
+  // one `transform` value without an inline style vs. Tailwind class fight.
   return createPortal(
     <div
-      style={{ transform: `translate(${drag.offset.x}px, ${drag.offset.y}px)` }}
+      inert={!activeNow}
+      style={{
+        transform: `translate(${drag.offset.x}px, ${drag.offset.y + (activeNow ? 0 : 12)}px) scale(${activeNow ? 1 : 0.95})`,
+        opacity: activeNow ? 1 : 0,
+        pointerEvents: activeNow ? "auto" : "none",
+        transition: drag.dragging ? "none" : "opacity 250ms ease-out, transform 250ms ease-out",
+      }}
       className="fixed bottom-5 right-5 z-[60] flex items-center gap-1 rounded-full border border-border bg-white/95 px-2 py-1.5 shadow-2xl backdrop-blur"
     >
       <button
