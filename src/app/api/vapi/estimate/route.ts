@@ -9,6 +9,7 @@ import { SYMPTOMS_BY_CATEGORY } from "@/lib/diagnose-data";
  */
 function matchCategory(input: string) {
   const q = input.toLowerCase().trim();
+  if (!q) return null;
   return (
     SERVICE_CATEGORIES.find(
       (c) =>
