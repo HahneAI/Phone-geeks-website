@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { Phone, PhoneOff, Mic, MicOff, Loader2, X } from "lucide-react";
+import { Phone, PhoneOff, Mic, MicOff, Loader2, X, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useVapiCall, isVoiceAgentConfigured, vapiDebugInfo } from "@/lib/use-vapi-call";
+import { isVoiceAgentConfigured, vapiDebugInfo, type VapiCall } from "@/lib/use-vapi-call";
 import { LOCATIONS } from "@/lib/locations";
 
 const PRIMARY_LOCATION = LOCATIONS[0];
@@ -47,42 +47,55 @@ function useDebugMode() {
   return new URLSearchParams(window.location.search).get("debug") === "1";
 }
 
-interface CallWidgetProps {
-  className?: string;
-  buttonClassName?: string;
+/** Drag offset (in px) from a fixed bottom-right anchor, plus the pointer
+ * handlers for the grip handle. Pointer Events cover mouse + touch alike. */
+function useDraggable() {
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const dragState = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(
+    null
+  );
+
+  function onPointerDown(e: ReactPointerEvent<HTMLButtonElement>) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragState.current = { startX: e.clientX, startY: e.clientY, baseX: offset.x, baseY: offset.y };
+  }
+  function onPointerMove(e: ReactPointerEvent<HTMLButtonElement>) {
+    if (!dragState.current) return;
+    const dx = e.clientX - dragState.current.startX;
+    const dy = e.clientY - dragState.current.startY;
+    setOffset({ x: dragState.current.baseX + dx, y: dragState.current.baseY + dy });
+  }
+  function onPointerUp() {
+    dragState.current = null;
+  }
+
+  return { offset, onPointerDown, onPointerMove, onPointerUp };
 }
 
-export function CallWidget({ className, buttonClassName }: CallWidgetProps) {
+interface CallWidgetProps {
+  /** One shared useVapiCall() instance, owned by SiteHeader and passed to
+   * every trigger point (desktop bar, mobile icon, hamburger menu) — so
+   * tapping any of them controls the same real call instead of each
+   * starting its own independent (and independently billed) session. */
+  call: VapiCall;
+  className?: string;
+  buttonClassName?: string;
+  /** Compact circular icon, no "Call Now" label — for tight header spots
+   * like the mobile top bar, where the full dropdown still lives in the
+   * hamburger menu as a separate CallWidget instance. */
+  iconOnly?: boolean;
+}
+
+export function CallWidget({ call, className, buttonClassName, iconOnly }: CallWidgetProps) {
   const [open, setOpen] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
   const [coords, setCoords] = useState({ top: 0, right: 0 });
   const mounted = useMounted();
   const debugMode = useDebugMode();
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const {
-    status,
-    muted,
-    assistantSpeaking,
-    errorMessage,
-    debugDetail,
-    start,
-    stop,
-    toggleMute,
-    reset,
-  } = useVapiCall();
-
-  useEffect(() => {
-    if (status !== "active") return;
-    const id = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => clearInterval(id);
-  }, [status]);
-
-  function handleStart() {
-    setElapsed(0);
-    start();
-  }
+  const { status, muted, assistantSpeaking, errorMessage, debugDetail, elapsed, start, stop, toggleMute, reset } =
+    call;
 
   // The panel is portaled to <body> (position: fixed) rather than nested
   // under the button, since the mobile menu it can live inside uses
@@ -126,8 +139,13 @@ export function CallWidget({ className, buttonClassName }: CallWidgetProps) {
     if (debugMode) {
       return (
         <div className={cn("relative h-9", className)}>
-          <span className="inline-flex h-9 items-center rounded-full border border-amber-300/60 bg-amber-500/10 px-4 text-xs font-semibold text-amber-100">
-            ⚠ Voice agent debug
+          <span
+            className={cn(
+              "inline-flex h-9 items-center rounded-full border border-amber-300/60 bg-amber-500/10 text-xs font-semibold text-amber-100",
+              iconOnly ? "w-9 justify-center px-0" : "px-4"
+            )}
+          >
+            {iconOnly ? "⚠" : "⚠ Voice agent debug"}
           </span>
           <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border border-amber-400 bg-amber-50 px-4 py-3 text-xs text-amber-900 shadow-xl">
             <p className="font-semibold">Voice agent not detected in this build</p>
@@ -151,13 +169,15 @@ export function CallWidget({ className, buttonClassName }: CallWidgetProps) {
     return (
       <a
         href={telHref(PRIMARY_LOCATION.phone)}
+        aria-label={iconOnly ? `Call ${PRIMARY_LOCATION.phone}` : undefined}
         className={cn(
-          "inline-flex h-9 items-center gap-2 rounded-full border border-white/30 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10",
+          "inline-flex h-9 items-center gap-2 rounded-full border border-white/30 text-sm font-semibold text-white transition-colors hover:bg-white/10",
+          iconOnly ? "w-9 justify-center px-0" : "px-4",
           buttonClassName
         )}
       >
         <Phone className="h-4 w-4" />
-        {PRIMARY_LOCATION.phone}
+        {!iconOnly && PRIMARY_LOCATION.phone}
       </a>
     );
   }
@@ -168,13 +188,15 @@ export function CallWidget({ className, buttonClassName }: CallWidgetProps) {
         ref={buttonRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-label={iconOnly ? "Call Now" : undefined}
         className={cn(
-          "relative inline-flex h-9 items-center gap-2 rounded-full border border-white/30 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10",
+          "relative inline-flex h-9 items-center gap-2 rounded-full border border-white/30 text-sm font-semibold text-white transition-colors hover:bg-white/10",
+          iconOnly ? "w-9 justify-center px-0" : "px-4",
           buttonClassName
         )}
       >
         <Phone className="h-4 w-4" />
-        Call Now
+        {!iconOnly && "Call Now"}
         {status === "active" && !open && (
           <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
@@ -209,7 +231,7 @@ export function CallWidget({ className, buttonClassName }: CallWidgetProps) {
               </p>
               <button
                 type="button"
-                onClick={handleStart}
+                onClick={start}
                 className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-brand-red text-sm font-semibold text-white transition-colors hover:bg-brand-red-dark"
               >
                 <Phone className="h-4 w-4" />
@@ -310,5 +332,67 @@ export function CallWidget({ className, buttonClassName }: CallWidgetProps) {
         document.body
       )}
     </div>
+  );
+}
+
+/**
+ * Persistent mini call bar — mounted exactly once (in SiteHeader, alongside
+ * the single shared useVapiCall() instance), shown whenever a call is
+ * active. Kept as a standalone component rather than inside CallWidget so
+ * only ever one bar renders, regardless of how many CallWidget trigger
+ * points exist in the header at once. Drag handle lets it be moved out of
+ * the way of page content.
+ */
+export function FloatingCallBar({ call }: { call: VapiCall }) {
+  const mounted = useMounted();
+  const drag = useDraggable();
+  const { status, muted, assistantSpeaking, elapsed, toggleMute, stop } = call;
+
+  if (!mounted || status !== "active") return null;
+
+  return createPortal(
+    <div
+      style={{ transform: `translate(${drag.offset.x}px, ${drag.offset.y}px)` }}
+      className="fixed bottom-5 right-5 z-[60] flex items-center gap-1 rounded-full border border-border bg-white/95 px-2 py-1.5 shadow-2xl backdrop-blur"
+    >
+      <button
+        type="button"
+        onPointerDown={drag.onPointerDown}
+        onPointerMove={drag.onPointerMove}
+        onPointerUp={drag.onPointerUp}
+        onPointerCancel={drag.onPointerUp}
+        aria-label="Drag to move"
+        style={{ touchAction: "none" }}
+        className="flex h-8 w-8 cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing"
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <span className="flex items-center gap-1.5 px-1 text-xs font-medium text-brand-navy">
+        <span
+          className={cn(
+            "h-2 w-2 rounded-full",
+            assistantSpeaking ? "animate-pulse bg-brand-blue" : "bg-green-500"
+          )}
+        />
+        <span className="font-mono">{formatElapsed(elapsed)}</span>
+      </span>
+      <button
+        type="button"
+        onClick={toggleMute}
+        aria-label={muted ? "Unmute" : "Mute"}
+        className="flex h-8 w-8 items-center justify-center rounded-full text-brand-navy transition-colors hover:bg-surface-muted"
+      >
+        {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+      </button>
+      <button
+        type="button"
+        onClick={stop}
+        aria-label="End call"
+        className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-red text-white transition-colors hover:bg-brand-red-dark"
+      >
+        <PhoneOff className="h-4 w-4" />
+      </button>
+    </div>,
+    document.body
   );
 }

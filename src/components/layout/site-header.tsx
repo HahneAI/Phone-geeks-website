@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { Menu, X, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CallWidget } from "@/components/layout/call-widget";
+import { CallWidget, FloatingCallBar } from "@/components/layout/call-widget";
+import { useVapiCall } from "@/lib/use-vapi-call";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
@@ -17,6 +18,9 @@ const NAV_LINKS = [
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
+  // Single shared call session for every CallWidget trigger point below
+  // (desktop bar, mobile icon, hamburger menu) — see VapiCall's doc comment.
+  const call = useVapiCall();
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-brand-navy/95 backdrop-blur supports-[backdrop-filter]:bg-brand-navy/80">
@@ -43,19 +47,22 @@ export function SiteHeader() {
         </nav>
 
         <div className="hidden items-center gap-3 md:flex">
-          <CallWidget />
+          <CallWidget call={call} />
           <Button href="/estimate" size="sm">
             Book a Repair
           </Button>
         </div>
 
-        <button
-          className="text-white md:hidden"
-          onClick={() => setOpen((v) => !v)}
-          aria-label="Toggle menu"
-        >
-          {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </button>
+        <div className="flex items-center gap-2 md:hidden">
+          <CallWidget call={call} iconOnly />
+          <button
+            className="text-white"
+            onClick={() => setOpen((v) => !v)}
+            aria-label="Toggle menu"
+          >
+            {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </button>
+        </div>
       </div>
 
       <div
@@ -76,13 +83,15 @@ export function SiteHeader() {
             </Link>
           ))}
           <div className="mt-2 flex flex-col gap-2">
-            <CallWidget buttonClassName="w-full justify-center" />
+            <CallWidget call={call} buttonClassName="w-full justify-center" />
             <Button href="/estimate" size="sm" className="w-full">
               Book a Repair
             </Button>
           </div>
         </nav>
       </div>
+
+      <FloatingCallBar call={call} />
     </header>
   );
 }
