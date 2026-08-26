@@ -1,10 +1,18 @@
 import type { Metadata } from "next";
-import { ExternalLink, LogOut, PhoneCall, TicketCheck } from "lucide-react";
+import {
+  ExternalLink,
+  Eye,
+  LogOut,
+  PhoneCall,
+  TicketCheck,
+  Users,
+} from "lucide-react";
 import {
   getBookingsCount,
   isBookingStoreDurable,
   listRecentBookings,
 } from "@/lib/booking-store";
+import { getWebAnalyticsSummary } from "@/lib/vercel-analytics";
 import { logout } from "@/app/management/actions";
 
 export const metadata: Metadata = {
@@ -18,8 +26,8 @@ export const dynamic = "force-dynamic";
 
 const LINK_OUTS = [
   {
-    label: "Vercel Analytics & Speed Insights",
-    description: "Site traffic and Core Web Vitals.",
+    label: "Vercel Speed Insights",
+    description: "Core Web Vitals — not pulled in here yet.",
     href: "https://vercel.com/dashboard",
   },
   {
@@ -34,11 +42,21 @@ const LINK_OUTS = [
   },
 ];
 
+const ANALYTICS_ERROR_MESSAGES: Record<string, string> = {
+  "not-configured":
+    "VERCEL_API_TOKEN isn't set on this deployment yet — create one in Vercel (Account Settings → Tokens) and add it as an env var to pull traffic in here.",
+  "not-enabled":
+    "Web Analytics isn't enabled for this project yet — turn it on in Vercel (Project → Analytics → Enable), then this fills in automatically.",
+  error: "Couldn't reach Vercel's Analytics API just now.",
+};
+
 export default async function ManagementPage() {
   const durable = isBookingStoreDurable();
-  const [bookingsCount, recentBookings] = durable
-    ? await Promise.all([getBookingsCount(), listRecentBookings(10)])
-    : [0, []];
+  const [bookingsCount, recentBookings, analytics] = await Promise.all([
+    durable ? getBookingsCount() : Promise.resolve(0),
+    durable ? listRecentBookings(10) : Promise.resolve([]),
+    getWebAnalyticsSummary(),
+  ]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
@@ -99,6 +117,78 @@ export default async function ManagementPage() {
             Tier 1. For now, see Vapi&rsquo;s own call logs (link below).
           </p>
         </div>
+      </div>
+
+      <div className="mt-10">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-black/50">
+          Site traffic
+        </h2>
+        {analytics.ok ? (
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm">
+              <div className="flex items-center gap-2 text-brand-navy">
+                <Eye className="h-4 w-4" />
+                <span className="text-xs font-semibold uppercase tracking-wide">
+                  Visitors / Pageviews
+                </span>
+              </div>
+              <div className="mt-3 flex gap-8">
+                <div>
+                  <p className="text-2xl font-bold text-brand-navy">
+                    {analytics.data.last7d.visitors}
+                  </p>
+                  <p className="text-xs text-black/50">
+                    visitors, last 7 days
+                  </p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-brand-navy">
+                    {analytics.data.last30d.visitors}
+                  </p>
+                  <p className="text-xs text-black/50">
+                    visitors, last 30 days
+                  </p>
+                </div>
+              </div>
+              <p className="mt-3 flex items-center gap-1 text-xs text-black/40">
+                <Users className="h-3 w-3" />
+                {analytics.data.last7d.pageviews} pageviews (7d) &middot;{" "}
+                {analytics.data.last30d.pageviews} pageviews (30d)
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm">
+              <span className="text-xs font-semibold uppercase tracking-wide text-brand-navy">
+                Top pages (7 days)
+              </span>
+              {analytics.data.topPages.length === 0 ? (
+                <p className="mt-3 text-sm text-black/50">
+                  No page-level data yet.
+                </p>
+              ) : (
+                <ul className="mt-3 space-y-1.5 text-sm">
+                  {analytics.data.topPages.map((page) => (
+                    <li
+                      key={page.path}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <span className="truncate text-black/70">
+                        {page.path}
+                      </span>
+                      <span className="shrink-0 text-xs font-semibold text-brand-navy">
+                        {page.pageviews}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {ANALYTICS_ERROR_MESSAGES[analytics.reason] ?? analytics.message}
+          </p>
+        )}
       </div>
 
       <div className="mt-10">

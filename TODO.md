@@ -517,9 +517,30 @@ plan below — option 1, a single shared password.
   `force-dynamic` — never statically cached); falls back to an honest
   "not durable yet" notice when Supabase isn't configured. Plus link-out
   cards to Vercel, Vapi, and Supabase's own dashboards for everything not
-  pulled in directly yet (call volume/attribution, Core Web Vitals).
-  Demo/tool usage tracking (`/diagnose`, `/track`, `/retail`) is still
-  not built — same gap called out below.
+  pulled in directly yet (Core Web Vitals). Demo/tool usage tracking
+  (`/diagnose`, `/track`, `/retail`) is still not built — same gap called
+  out below.
+- **Site traffic is now pulled in live from Vercel's own Web Analytics
+  REST API**, resolving the "is Vercel Analytics data actually pullable
+  for free?" open question below — yes, it's a normal REST API, no paid
+  plan required. `src/lib/vercel-analytics.ts` calls
+  `visits/count` (7d + 30d visitors/pageviews) and `visits/aggregate`
+  (top 5 pages, 7d) using one new secret, **`VERCEL_API_TOKEN`** (create
+  at Vercel → Account Settings → Tokens), plus the auto-provided
+  `VERCEL_PROJECT_ID` and a hardcoded team ID (not a secret, overridable
+  via `VERCEL_TEAM_ID`).
+  - **Confirmed live against this actual project (via the Vercel MCP
+    tools, 2026-08-26) that Web Analytics itself isn't enabled yet** —
+    the API 404s with "Web Analytics not found," the same story as the
+    Speed Insights toggle from §1. The dashboard card reports this
+    honestly (`reason: "not-enabled"`) rather than showing zeroes; once
+    both `VERCEL_API_TOKEN` is set and Web Analytics is switched on
+    (Project → Analytics → Enable), the card fills in automatically with
+    no further code changes.
+  - Speed Insights (Core Web Vitals) is not pulled in the same way yet —
+    still just a link-out. Vercel's Speed Insights has its own separate
+    query API; worth doing as a follow-up once Web Analytics is
+    confirmed working end-to-end.
 - Footer link added (`src/components/layout/site-footer.tsx`), styled
   plain/muted in the copyright bar as planned, not in the main sitemap
   list.
