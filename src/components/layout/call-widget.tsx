@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Phone, PhoneOff, Mic, MicOff, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useVapiCall, isVoiceAgentConfigured } from "@/lib/use-vapi-call";
+import { useVapiCall, isVoiceAgentConfigured, vapiDebugInfo } from "@/lib/use-vapi-call";
 import { LOCATIONS } from "@/lib/locations";
 
 const PRIMARY_LOCATION = LOCATIONS[0];
@@ -33,6 +33,20 @@ function useMounted() {
   );
 }
 
+/**
+ * TEMPORARY debug aid — visit the site with ?debug=1 to swap the "not
+ * configured" fallback (the plain tel: link) for a diagnostic panel showing
+ * exactly what this deployed build has baked in for the two Vapi env vars.
+ * Only reacts once mounted, so it never differs between server and client
+ * render and never needs a setState-in-effect. Safe to remove once the env
+ * var mismatch is resolved.
+ */
+function useDebugMode() {
+  const mounted = useMounted();
+  if (!mounted) return false;
+  return new URLSearchParams(window.location.search).get("debug") === "1";
+}
+
 interface CallWidgetProps {
   className?: string;
   buttonClassName?: string;
@@ -43,6 +57,7 @@ export function CallWidget({ className, buttonClassName }: CallWidgetProps) {
   const [elapsed, setElapsed] = useState(0);
   const [coords, setCoords] = useState({ top: 0, right: 0 });
   const mounted = useMounted();
+  const debugMode = useDebugMode();
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -95,8 +110,35 @@ export function CallWidget({ className, buttonClassName }: CallWidgetProps) {
   }, [open]);
 
   // No public key / assistant ID set yet — an honest plain phone link
-  // instead of a widget that implies an AI agent will pick up.
+  // instead of a widget that implies an AI agent will pick up. With
+  // ?debug=1, show the diagnostic panel instead (see useDebugMode above) —
+  // TEMPORARY, remove once the env var mismatch is found.
   if (!isVoiceAgentConfigured) {
+    if (debugMode) {
+      return (
+        <div className={cn("relative h-9", className)}>
+          <span className="inline-flex h-9 items-center rounded-full border border-amber-300/60 bg-amber-500/10 px-4 text-xs font-semibold text-amber-100">
+            ⚠ Voice agent debug
+          </span>
+          <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border border-amber-400 bg-amber-50 px-4 py-3 text-xs text-amber-900 shadow-xl">
+            <p className="font-semibold">Voice agent not detected in this build</p>
+            <p className="mt-1.5">
+              <span className="font-mono">NEXT_PUBLIC_VAPI_PUBLIC_KEY</span>:{" "}
+              {vapiDebugInfo.hasPublicKey ? vapiDebugInfo.publicKeyPreview : "❌ missing"}
+            </p>
+            <p className="mt-1">
+              <span className="font-mono">NEXT_PUBLIC_VAPI_ASSISTANT_ID</span>:{" "}
+              {vapiDebugInfo.hasAssistantId ? vapiDebugInfo.assistantId : "❌ missing"}
+            </p>
+            <p className="mt-1.5 text-amber-700">
+              If both show a value here but the widget still didn&rsquo;t
+              switch on, this build predates the env var change — trigger a
+              fresh deploy.
+            </p>
+          </div>
+        </div>
+      );
+    }
     return (
       <a
         href={telHref(PRIMARY_LOCATION.phone)}
