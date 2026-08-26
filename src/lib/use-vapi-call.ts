@@ -48,6 +48,15 @@ export const vapiDebugInfo = {
 
 export type CallStatus = "idle" | "connecting" | "active" | "ended" | "error";
 
+/**
+ * One shared instance of this hook lives in SiteHeader and is passed as a
+ * prop to every CallWidget trigger point (desktop bar, mobile icon,
+ * hamburger menu) — otherwise each would own an independent Vapi session,
+ * and tapping two different trigger buttons could start two real,
+ * simultaneously-billed calls.
+ */
+export type VapiCall = ReturnType<typeof useVapiCall>;
+
 export function useVapiCall() {
   const vapiRef = useRef<Vapi | null>(null);
   const [status, setStatus] = useState<CallStatus>("idle");
@@ -59,6 +68,17 @@ export function useVapiCall() {
   // real call fails (bad key, bad assistant ID, mic permission, network)
   // needs the actual SDK error payload, not a generic sentence.
   const [debugDetail, setDebugDetail] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+
+  // Lives here (not in the widget component) since this hook is now a
+  // single shared instance across every call-trigger point in the header —
+  // duplicating the timer per widget would just mean N independent
+  // intervals doing the same setElapsed off the same status.
+  useEffect(() => {
+    if (status !== "active") return;
+    const id = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(id);
+  }, [status]);
 
   function describeError(err: unknown): string {
     if (err instanceof Error) return err.message;
@@ -86,6 +106,7 @@ export function useVapiCall() {
     setStatus("connecting");
     setErrorMessage(null);
     setDebugDetail(null);
+    setElapsed(0);
 
     try {
       const { default: VapiClient } = await import("@vapi-ai/web");
@@ -146,6 +167,7 @@ export function useVapiCall() {
     assistantSpeaking,
     errorMessage,
     debugDetail,
+    elapsed,
     start,
     stop,
     toggleMute,
