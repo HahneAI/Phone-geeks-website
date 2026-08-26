@@ -54,6 +54,20 @@ export function useVapiCall() {
   const [muted, setMuted] = useState(false);
   const [assistantSpeaking, setAssistantSpeaking] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // Raw error detail for the ?debug=1 panel — the friendly errorMessage
+  // above is deliberately vague for real callers, but pinning down why a
+  // real call fails (bad key, bad assistant ID, mic permission, network)
+  // needs the actual SDK error payload, not a generic sentence.
+  const [debugDetail, setDebugDetail] = useState<string | null>(null);
+
+  function describeError(err: unknown): string {
+    if (err instanceof Error) return err.message;
+    try {
+      return JSON.stringify(err, null, 2).slice(0, 500);
+    } catch {
+      return String(err);
+    }
+  }
 
   // Stop the call if the widget unmounts mid-call (e.g. route change).
   useEffect(() => {
@@ -71,6 +85,7 @@ export function useVapiCall() {
 
     setStatus("connecting");
     setErrorMessage(null);
+    setDebugDetail(null);
 
     try {
       const { default: VapiClient } = await import("@vapi-ai/web");
@@ -88,6 +103,7 @@ export function useVapiCall() {
         console.error("[vapi-call] call error", err);
         setStatus("error");
         setErrorMessage("The call dropped unexpectedly.");
+        setDebugDetail(describeError(err));
       });
 
       await vapi.start(ASSISTANT_ID!);
@@ -97,6 +113,7 @@ export function useVapiCall() {
       setErrorMessage(
         "Couldn't start the call — check that your browser has mic access and try again."
       );
+      setDebugDetail(describeError(err));
     }
   }, []);
 
@@ -120,7 +137,18 @@ export function useVapiCall() {
     setStatus("idle");
     setMuted(false);
     setErrorMessage(null);
+    setDebugDetail(null);
   }, []);
 
-  return { status, muted, assistantSpeaking, errorMessage, start, stop, toggleMute, reset };
+  return {
+    status,
+    muted,
+    assistantSpeaking,
+    errorMessage,
+    debugDetail,
+    start,
+    stop,
+    toggleMute,
+    reset,
+  };
 }
