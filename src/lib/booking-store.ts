@@ -143,3 +143,33 @@ export async function getBooking(reference: string): Promise<PhoneBooking | null
 export function isBookingStoreDurable(): boolean {
   return supabase !== null;
 }
+
+/** Most recent bookings, newest first — powers the /management dashboard. */
+export async function listRecentBookings(
+  limit: number
+): Promise<PhoneBooking[]> {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(`Supabase list failed: ${error.message}`);
+    return (data as BookingRow[]).map(fromRow);
+  }
+  return [...memoryStore.values()]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit);
+}
+
+/** Total booking count — powers the /management dashboard's stat card. */
+export async function getBookingsCount(): Promise<number> {
+  if (supabase) {
+    const { count, error } = await supabase
+      .from("bookings")
+      .select("*", { count: "exact", head: true });
+    if (error) throw new Error(`Supabase count failed: ${error.message}`);
+    return count ?? 0;
+  }
+  return memoryStore.size;
+}

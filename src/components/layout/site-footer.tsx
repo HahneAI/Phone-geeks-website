@@ -72,7 +72,10 @@ export function SiteFooter() {
       </div>
 
       <div className="border-t border-white/10 px-4 py-6 text-center text-xs sm:px-6">
-        © {new Date().getFullYear()} Phone Geeks. All rights reserved.
+        © {new Date().getFullYear()} Phone Geeks. All rights reserved.{" "}
+        <Link href="/management" className="text-white/40 hover:text-white/60">
+          Management
+        </Link>
       </div>
     </footer>
   );

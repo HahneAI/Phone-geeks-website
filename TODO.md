@@ -485,7 +485,7 @@ built here is a legitimate starting point to grow into a real system.
 
 ---
 
-## 6. Owner Management Dashboard — Planning (not built yet)
+## 6. Owner Management Dashboard — v1 shipped (password-gated)
 
 The idea: a single, low-key "Management" link in the site footer that
 gateways to a private dashboard aggregating everything built across this
@@ -494,9 +494,39 @@ usage — in one place. This is what actually proves the value the
 commission structure is based on, rather than the owner having to piece
 it together from four different tools (or take it on faith).
 
-**This is a plan, not a build** — the security question below has to be
-answered before a link like this goes anywhere near the live footer, and
-it's not answered yet.
+**v1 is built**, per the "Open question: how is this actually secured?"
+plan below — option 1, a single shared password.
+- `/management` (`src/app/management/page.tsx`), gated by `src/proxy.ts`
+  (Next 16 renamed `middleware.ts` → `proxy.ts`; the old name now logs a
+  deprecation warning at build time) — any request to `/management` or a
+  sub-route without a valid session cookie redirects to
+  `/management/login`.
+- One env var to set in Vercel: **`MANAGEMENT_PASSWORD`**. No password
+  set → login always fails with an honest "not configured" message
+  instead of silently accepting anything.
+- `src/lib/management-auth.ts` signs the session cookie with an HMAC
+  (Web Crypto, keyed on `MANAGEMENT_PASSWORD` itself) so a visitor can't
+  just set their own "logged in" cookie — only someone who already knows
+  the password could forge a valid one. 30-day session, httpOnly +
+  Secure + SameSite=Lax cookie.
+- Login is a real Next.js Server Action (`src/app/management/actions.ts`)
+  with a plain `<form>`, so it degrades gracefully without JS.
+- Dashboard content so far: total phone-booking count and a recent-
+  bookings table, both live from Supabase via `booking-store.ts`'s new
+  `getBookingsCount()`/`listRecentBookings()` (page is
+  `force-dynamic` — never statically cached); falls back to an honest
+  "not durable yet" notice when Supabase isn't configured. Plus link-out
+  cards to Vercel, Vapi, and Supabase's own dashboards for everything not
+  pulled in directly yet (call volume/attribution, Core Web Vitals).
+  Demo/tool usage tracking (`/diagnose`, `/track`, `/retail`) is still
+  not built — same gap called out below.
+- Footer link added (`src/components/layout/site-footer.tsx`), styled
+  plain/muted in the copyright bar as planned, not in the main sitemap
+  list.
+- Still open: v2 real auth (Supabase Auth) if this outgrows "one owner,
+  one password"; no rate limiting on login attempts yet (matches the
+  Vapi tool routes' Tier 0 gap — same class of issue, not yet hardened
+  anywhere on this project).
 
 ### What it would show
 - **Site health** — traffic and Core Web Vitals, straight from Vercel
@@ -546,10 +576,10 @@ exists in v1 — if it's not available free, the management page can still
 deep-link out to Vercel's own dashboard for that section rather than
 faking it.
 
-### Rough shape, once built
-`/management` route, password-gated (v1) or Supabase-Auth-gated (v2),
-with a handful of stat cards pulling from Supabase (bookings count, demo
-tool events) plus either embedded or linked-out Vercel/Vapi views for
-the pieces that live in those platforms' own dashboards. Footer link is
+### Rough shape — built as described, see above
+`/management` route, password-gated (v1, done) — a future Supabase-Auth
+v2 remains an option if needed later. Stat cards pull real Supabase data
+(bookings count) today; demo tool events aren't tracked yet. Vercel/Vapi
+sections are linked out rather than embedded for now. Footer link is
 deliberately plain/unstyled — this isn't a customer-facing feature, it
 shouldn't look like one.
