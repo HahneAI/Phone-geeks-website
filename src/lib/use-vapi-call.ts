@@ -29,6 +29,23 @@ const ASSISTANT_ID = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
 
 export const isVoiceAgentConfigured = Boolean(PUBLIC_KEY && ASSISTANT_ID);
 
+/**
+ * Non-secret diagnostic snapshot of what this build actually has baked in —
+ * lets `?debug=1` on the header widget show *why* isVoiceAgentConfigured is
+ * false instead of silently falling back, without ever printing the full
+ * public key (still not truly secret, but no reason to show it whole).
+ */
+export const vapiDebugInfo = {
+  hasPublicKey: Boolean(PUBLIC_KEY),
+  hasAssistantId: Boolean(ASSISTANT_ID),
+  publicKeyPreview: PUBLIC_KEY
+    ? PUBLIC_KEY.length > 10
+      ? `${PUBLIC_KEY.slice(0, 6)}…${PUBLIC_KEY.slice(-4)}`
+      : PUBLIC_KEY
+    : null,
+  assistantId: ASSISTANT_ID ?? null,
+};
+
 export type CallStatus = "idle" | "connecting" | "active" | "ended" | "error";
 
 export function useVapiCall() {
