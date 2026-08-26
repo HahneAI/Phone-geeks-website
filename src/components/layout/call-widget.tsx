@@ -61,8 +61,17 @@ export function CallWidget({ className, buttonClassName }: CallWidgetProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const { status, muted, assistantSpeaking, errorMessage, start, stop, toggleMute, reset } =
-    useVapiCall();
+  const {
+    status,
+    muted,
+    assistantSpeaking,
+    errorMessage,
+    debugDetail,
+    start,
+    stop,
+    toggleMute,
+    reset,
+  } = useVapiCall();
 
   useEffect(() => {
     if (status !== "active") return;
@@ -264,6 +273,11 @@ export function CallWidget({ className, buttonClassName }: CallWidgetProps) {
                 Something went wrong
               </p>
               <p className="mt-1 text-sm text-muted-foreground">{errorMessage}</p>
+              {debugMode && debugDetail && (
+                <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-amber-50 p-2 text-[10px] text-amber-900">
+                  {debugDetail}
+                </pre>
+              )}
               <button
                 type="button"
                 onClick={reset}
@@ -272,6 +286,13 @@ export function CallWidget({ className, buttonClassName }: CallWidgetProps) {
                 Try Again
               </button>
             </>
+          )}
+
+          {debugMode && (
+            <p className="mt-3 border-t border-border pt-2 text-center text-[10px] text-muted-foreground">
+              debug: key {vapiDebugInfo.publicKeyPreview ?? "—"} · assistant{" "}
+              {vapiDebugInfo.assistantId ?? "—"}
+            </p>
           )}
 
           {status !== "active" && status !== "connecting" && (
