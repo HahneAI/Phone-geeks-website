@@ -4,6 +4,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SiteFooter } from "@/components/layout/site-footer";
+import { VapiChatWidget } from "@/components/layout/vapi-chat-widget";
 
 // Resolves to the real Vercel deployment URL automatically; set
 // NEXT_PUBLIC_SITE_URL once a custom domain is attached to override it.
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <SiteHeader />
         <main className="flex-1">{children}</main>
         <SiteFooter />
+        <VapiChatWidget />
         <Analytics />
         <SpeedInsights />
       </body>
