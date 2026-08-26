@@ -38,23 +38,29 @@ These are the "make it feel like a real product, not a template" pieces —
 the stuff that actually shows off during the interview. Roughly ranked by
 impact vs. effort.
 
-### 2.1 Repair Status Tracker ("Track My Repair") — done
-Shipped at `/track`, linked from the header nav and footer sitemap. Ticket
-data lives in `src/lib/tracker-data.ts` — 3 demo tickets at different
-pipeline stages (mid-repair, complete, just dropped off). Marked with a
-"Demo feature" badge in the hero so it reads honestly as illustrative
-rather than a real live system.
-- Enter a ticket number (or just click a demo ticket) → see a stepper:
+### 2.1 Repair Status Tracker ("Track My Repair") — done, now backed by real data
+Shipped at `/track`, linked from the header nav and footer sitemap. Still
+marked with a "Demo feature" badge in the hero — honest, since the only
+tickets that actually exist are phone-booked appointments (§5 Tier 1); a
+walk-in repair still isn't logged anywhere, and every ticket currently
+starts and stays at step 0 ("Dropped Off") since there's no staff-facing
+way to advance it yet.
+- The 3 hardcoded sample tickets (`DEMO_TICKETS` in `tracker-data.ts`) and
+  the "try a demo ticket" quick-links were removed once real bookings
+  went live in production — every lookup now hits the real
+  `/api/track/[id]` endpoint (`src/lib/booking-store.ts` → Supabase).
+- Enter a ticket number → see a stepper:
   **Dropped Off → Diagnosing → Repairing → Quality Check → Ready for Pickup**
 - Each step gets a timestamp + a short geek-toned note ("Battery's out, new
   one's going in now") instead of sterile status text — matches the casual
   small-shop tone from the brief.
 - Visual: horizontal stepper on desktop, vertical on mobile, active step
   pulses/glows in brand red.
-- Optional nice-touch: SMS/email opt-in checkbox on the form (non-functional
-  for demo, but shows the product thinking — "text me when it's ready").
-- Build note: pure client-side state + a small mock dataset keyed by ticket
-  number. No backend needed.
+- Still non-functional: the SMS/email opt-in checkbox on the ticket card
+  ("text me when it's ready") — no real notification pipeline yet.
+- To retire the "Demo feature" badge for real: give the shop's staff a way
+  to advance a ticket past step 0 (manual admin action, or a real
+  RepairShopr/RepairDesk integration per §5 Tier 1's second bullet).
 
 ### 2.2 Free Diagnostic / "What's Wrong With My Device?" Quiz Flow — skeleton shipped
 Shipped at `/diagnose`, linked from the footer sitemap and cross-linked
