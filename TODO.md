@@ -443,6 +443,46 @@ built here is a legitimate starting point to grow into a real system.
   market research the owner doesn't currently have (ties to §4.7's
   ops-digest idea, phone-specific).
 
+### Tier 5 — Bringing the agent onto the website itself
+- [x] **Header "Call Now" widget** (`src/components/layout/call-widget.tsx`,
+  `src/lib/use-vapi-call.ts`) — lets a website visitor talk to the same
+  Vapi assistant that answers the phone, right in the browser, via
+  `@vapi-ai/web`. Shows connecting/active/error states, a mute toggle, a
+  live-call indicator dot on the header button, and a call timer.
+  - **Honest fallback, not a fake widget:** until
+    `NEXT_PUBLIC_VAPI_PUBLIC_KEY` and `NEXT_PUBLIC_VAPI_ASSISTANT_ID` are
+    set in Vercel, the header renders a plain `tel:` link to the Arnold
+    shop's real number instead of a widget that implies an AI will pick
+    up. Once both are set (Vapi dashboard → API Keys → Public Key; the
+    assistant's ID from the Assistants page) and redeployed, the real
+    widget takes over automatically — no code change needed.
+  - Verified: builds and lints clean with and without the env vars set;
+    manually tested in a real browser (Playwright) — desktop and mobile
+    fallback states, the configured idle/connecting/error states, and a
+    real bug where the popover was clipped by the mobile nav's
+    `overflow-hidden` collapse wrapper (fixed by portaling the panel to
+    `document.body` with `position: fixed`, positioned from the button's
+    bounding rect). Not yet tested against a *real* Vapi public key/call —
+    that needs the actual credentials, which aren't set yet.
+  - "Prefer a person? Call ###" is always visible in every non-active
+    panel state — the AI option never strands someone without a real
+    human fallback.
+- **Chat widget with chat-to-call handoff** — researched, not built.
+  Vapi has two separate real products that could combine for this: the
+  Web SDK used above (voice-first, and its `send()` method can inject
+  text messages into a *live* voice session) and a newer, separate Chat
+  API (OpenAI-compatible text endpoint using the same assistant config).
+  Could not confirm from official docs that Vapi ships a single packaged
+  widget that auto-carries a text conversation into a voice call with
+  shared context — `docs.vapi.ai` is blocked from this sandbox, so this
+  is based on secondhand search results and the SDK's GitHub README, not
+  the actual widget docs. Best next step before building: read
+  `docs.vapi.ai/chat/web-widget` directly (not blocked outside this
+  sandbox) to confirm the real mechanism, likely either (a) a genuine
+  built-in handoff, or (b) something we'd assemble ourselves — run the
+  Chat API for text, then start a Web SDK call seeded with the chat
+  transcript as context when the user asks to switch to voice.
+
 ---
 
 ## 6. Owner Management Dashboard — Planning (not built yet)
