@@ -176,3 +176,95 @@ export async function getWebAnalyticsSummary(): Promise<AnalyticsResult> {
     },
   };
 }
+
+/**
+ * Chat widget data — reads the custom events the floating chat+voice
+ * widget already fires (`src/components/layout/vapi-chat-widget.tsx`'s
+ * onVoiceStart/onVoiceEnd/onError -> @vercel/analytics `track()` calls,
+ * tagged `source: "chat_widget"`). Same VERCEL_API_TOKEN / Web Analytics
+ * requirement as getWebAnalyticsSummary() above — no separate config.
+ *
+ * Only covers the widget's *voice* mode, because that's the only thing
+ * it currently tracks — its text-chat onMessage callback was
+ * deliberately left unwired (undocumented payload shape, see TODO.md
+ * §5 Tier 5). So "connected/ended/failed" here means "visitor switched
+ * to a voice call from inside the chat widget," not chat messages sent.
+ */
+export interface ChatWidgetPeriod {
+  connected: number;
+  ended: number;
+  failed: number;
+}
+
+export interface ChatWidgetSummary {
+  last7d: ChatWidgetPeriod;
+  last30d: ChatWidgetPeriod;
+}
+
+export type ChatWidgetResult =
+  | { ok: true; data: ChatWidgetSummary }
+  | {
+      ok: false;
+      reason: "not-configured" | "not-enabled" | "error";
+      message: string;
+    };
+
+function countOf(result: FetchResult): number {
+  if (!result.ok) return 0;
+  const data = result.json.data as { count?: number; pageviews?: number } | undefined;
+  return data?.count ?? data?.pageviews ?? 0;
+}
+
+async function countChatWidgetEvent(
+  eventName: string,
+  since: string,
+  until: string
+): Promise<FetchResult> {
+  return vercelFetch("events/count", {
+    since,
+    until,
+    filter: `eventName eq '${eventName}' and eventData/source eq 'chat_widget'`,
+  });
+}
+
+export async function getChatWidgetSummary(): Promise<ChatWidgetResult> {
+  const until = today();
+  const since7 = isoDaysAgo(7);
+  const since30 = isoDaysAgo(30);
+
+  const [connected7, ended7, failed7, connected30, ended30, failed30] =
+    await Promise.all([
+      countChatWidgetEvent("voice_call_connected", since7, until),
+      countChatWidgetEvent("voice_call_ended", since7, until),
+      countChatWidgetEvent("voice_call_failed", since7, until),
+      countChatWidgetEvent("voice_call_connected", since30, until),
+      countChatWidgetEvent("voice_call_ended", since30, until),
+      countChatWidgetEvent("voice_call_failed", since30, until),
+    ]);
+
+  const failure = [
+    connected7,
+    ended7,
+    failed7,
+    connected30,
+    ended30,
+    failed30,
+  ].find((r) => !r.ok);
+  if (failure && !failure.ok) return failure;
+
+  return {
+    ok: true,
+    data: {
+      last7d: {
+        connected: countOf(connected7),
+        ended: countOf(ended7),
+        failed: countOf(failed7),
+      },
+      last30d: {
+        connected: countOf(connected30),
+        ended: countOf(ended30),
+        failed: countOf(failed30),
+      },
+    },
+  };
+}

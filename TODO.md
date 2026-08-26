@@ -564,6 +564,41 @@ plan below — option 1, a single shared password.
     still just a link-out. Vercel's Speed Insights has its own separate
     query API; worth doing as a follow-up once Web Analytics is
     confirmed working end-to-end.
+- **Chat widget data and Caller data sections added**, following the
+  merge of §5 Tier 5's floating chat+voice widget
+  (`vapi-chat-widget.tsx`) into `main` — both the header call widget and
+  the chat widget's voice mode talk to the same Vapi assistant
+  (`NEXT_PUBLIC_VAPI_ASSISTANT_ID`), so both needed a real place to show
+  up here instead of the old "not tracked yet" stub.
+  - **Chat widget data**: reads the `voice_call_connected` /
+    `voice_call_ended` / `voice_call_failed` custom events the chat
+    widget already fires via `@vercel/analytics`'s `track()` (added when
+    that widget was built) — `getChatWidgetSummary()` in
+    `vercel-analytics.ts`, same `VERCEL_API_TOKEN`/Web-Analytics-enabled
+    requirement as site traffic above, no new secret. Only covers the
+    widget's voice mode, honestly — its text-chat `onMessage` was
+    deliberately left un-instrumented when it was built (undocumented
+    payload shape), so this can't show chat-message volume yet.
+  - **Caller data**: real call volume/cost/duration/ended-reason from
+    Vapi's own Calls API (`GET https://api.vapi.ai/call`), scoped to
+    this site's assistant — `src/lib/vapi-analytics.ts`. Needs one new
+    secret, **`VAPI_PRIVATE_KEY`** (Vapi Dashboard → API Keys → Private
+    Key — never the same value as the already-public
+    `NEXT_PUBLIC_VAPI_PUBLIC_KEY`). Splits each period into web calls
+    (either site widget) vs. real phone calls using Vapi's own `type`
+    field, since Vapi doesn't tag a call by which widget started it.
+  - `docs.vapi.ai` is still blocked from this sandbox, so the Calls
+    API's exact query-parameter names for server-side date filtering
+    couldn't be verified — confirmed the endpoint/auth pattern
+    (`GET /call`, Bearer token) via search results instead, and to avoid
+    guessing at unverified filter params, `vapi-analytics.ts` fetches
+    the most recent 100 calls and buckets them into 7d/30d windows in
+    code. Fine at today's call volume; flagged in the code
+    (`truncated` field, surfaced in the UI) for whenever that stops
+    being true.
+  - Both sections use the same honest-fallback pattern as the rest of
+    this page — an amber notice naming exactly which env var is missing
+    rather than showing zeroes.
 - Footer link added (`src/components/layout/site-footer.tsx`), styled
   plain/muted in the copyright bar as planned, not in the main sitemap
   list.
