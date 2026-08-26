@@ -2,7 +2,7 @@ import { handleVapiTools, type VapiToolCall } from "@/lib/vapi";
 import { LOCATIONS } from "@/lib/locations";
 import { saveBooking, isBookingStoreDurable } from "@/lib/booking-store";
 
-/** Same PG-##### style as the /track demo tickets, for a consistent bit. */
+/** Same PG-##### style as regular in-shop ticket numbers, for consistency. */
 function generateReference() {
   return `PG-${Math.floor(10000 + Math.random() * 90000)}`;
 }

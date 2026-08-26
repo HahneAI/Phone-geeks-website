@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Menu, X, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CallWidget } from "@/components/layout/call-widget";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
@@ -41,7 +42,8 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="hidden md:block">
+        <div className="hidden items-center gap-3 md:flex">
+          <CallWidget />
           <Button href="/estimate" size="sm">
             Book a Repair
           </Button>
@@ -73,9 +75,12 @@ export function SiteHeader() {
               {link.label}
             </Link>
           ))}
-          <Button href="/estimate" size="sm" className="mt-2 w-full">
-            Book a Repair
-          </Button>
+          <div className="mt-2 flex flex-col gap-2">
+            <CallWidget buttonClassName="w-full justify-center" />
+            <Button href="/estimate" size="sm" className="w-full">
+              Book a Repair
+            </Button>
+          </div>
         </nav>
       </div>
     </header>

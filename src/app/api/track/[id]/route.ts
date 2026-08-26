@@ -3,9 +3,9 @@ import type { DemoTicket } from "@/lib/tracker-data";
 
 /**
  * Public lookup for the /track page's TicketLookup component — checks a
- * phone-booked appointment (see /api/vapi/book-appointment) against the
- * same shape DEMO_TICKETS already uses, so RepairStepper renders it with
- * zero changes. A booking always starts at step 0 ("Dropped Off") since
+ * phone-booked appointment (see /api/vapi/book-appointment) and shapes it
+ * as a DemoTicket so RepairStepper renders it with zero changes. A
+ * booking always starts at step 0 ("Dropped Off") since
  * the caller hasn't brought the device in yet — the phone call only
  * requests an appointment, it doesn't check the device in.
  */

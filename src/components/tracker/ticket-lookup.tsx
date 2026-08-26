@@ -4,44 +4,28 @@ import { useState, type FormEvent } from "react";
 import { Search, MapPin, Bell, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import { DEMO_TICKETS, TRACKER_STEPS, type DemoTicket } from "@/lib/tracker-data";
+import { TRACKER_STEPS, type DemoTicket } from "@/lib/tracker-data";
 import { RepairStepper } from "./repair-stepper";
 
 export function TicketLookup() {
   const [query, setQuery] = useState("");
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [liveTicket, setLiveTicket] = useState<DemoTicket | null>(null);
+  const [ticket, setTicket] = useState<DemoTicket | null>(null);
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [notifyMe, setNotifyMe] = useState(false);
-
-  const demoTicket = DEMO_TICKETS.find(
-    (t) => t.id.toLowerCase() === activeId?.toLowerCase()
-  );
-  const ticket = demoTicket ?? liveTicket ?? undefined;
 
   async function lookup(id: string) {
     const trimmed = id.trim();
     if (!trimmed) return;
 
-    setActiveId(trimmed);
-    setLiveTicket(null);
+    setTicket(null);
     setNotFound(false);
-
-    const isDemoTicket = DEMO_TICKETS.some(
-      (t) => t.id.toLowerCase() === trimmed.toLowerCase()
-    );
-    if (isDemoTicket) return;
-
-    // Not one of the 3 demo tickets — check for a real phone-booked
-    // appointment (src/app/api/vapi/book-appointment writes these).
     setLoading(true);
     try {
       const res = await fetch(`/api/track/${encodeURIComponent(trimmed)}`);
       const data = await res.json();
       if (data.found) {
-        setLiveTicket(data.ticket);
+        setTicket(data.ticket);
       } else {
         setNotFound(true);
       }
@@ -66,33 +50,12 @@ export function TicketLookup() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Enter your ticket number (e.g. PG-48213)"
+              placeholder="Enter your ticket number (e.g. PG-56276)"
               className="w-full rounded-lg border-2 border-border py-2.5 pl-10 pr-3.5 text-sm outline-none transition-colors focus:border-brand-blue"
             />
           </div>
           <Button type="submit">Track It</Button>
         </form>
-
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <span>Try a demo ticket:</span>
-          {DEMO_TICKETS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => {
-                setQuery(t.id);
-                lookup(t.id);
-              }}
-              className={cn(
-                "rounded-full border border-border px-3 py-1 text-xs font-medium text-brand-navy transition-colors hover:border-brand-red/50 hover:bg-brand-red/5 hover:text-brand-red",
-                activeId?.toLowerCase() === t.id.toLowerCase() &&
-                  "border-brand-red/50 bg-brand-red/5 text-brand-red"
-              )}
-            >
-              {t.id}
-            </button>
-          ))}
-        </div>
       </Card>
 
       {loading && (
@@ -108,7 +71,7 @@ export function TicketLookup() {
             We couldn&rsquo;t find a ticket with that number.
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Try one of the sample tickets above, or give a shop a call and
+            Double-check the number, or give the shop a call and
             we&rsquo;ll look yours up directly.
           </p>
         </Card>

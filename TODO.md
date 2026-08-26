@@ -13,6 +13,12 @@ tracks build status and the ideas we've floated on top of it.
 - [x] Layout shell: sticky nav w/ mobile menu, footer w/ real sitemap + locations
 - [x] Home page: hero, repair-type strip, services grid, testimonial carousel, warranty section, CTA banner
 - [x] Vercel deploy prep (build verified, engines pinned, no stray deps)
+- [x] Vercel Analytics + Speed Insights (`@vercel/analytics`,
+  `@vercel/speed-insights`, mounted in the root layout) — free on the
+  Hobby plan, zero config beyond being in the tree. Once deployed, traffic
+  and Core Web Vitals show up automatically in the Vercel dashboard — no
+  env vars, no setup step for the owner. Feeds directly into §6's
+  management dashboard planning below.
 
 ### Up next (core sitemap, from the original brief)
 - [x] **Services page** — detailed breakdown per repair type, with mock pricing/turnaround per category and a jump-nav
@@ -32,23 +38,29 @@ These are the "make it feel like a real product, not a template" pieces —
 the stuff that actually shows off during the interview. Roughly ranked by
 impact vs. effort.
 
-### 2.1 Repair Status Tracker ("Track My Repair") — done
-Shipped at `/track`, linked from the header nav and footer sitemap. Ticket
-data lives in `src/lib/tracker-data.ts` — 3 demo tickets at different
-pipeline stages (mid-repair, complete, just dropped off). Marked with a
-"Demo feature" badge in the hero so it reads honestly as illustrative
-rather than a real live system.
-- Enter a ticket number (or just click a demo ticket) → see a stepper:
+### 2.1 Repair Status Tracker ("Track My Repair") — done, now backed by real data
+Shipped at `/track`, linked from the header nav and footer sitemap. Still
+marked with a "Demo feature" badge in the hero — honest, since the only
+tickets that actually exist are phone-booked appointments (§5 Tier 1); a
+walk-in repair still isn't logged anywhere, and every ticket currently
+starts and stays at step 0 ("Dropped Off") since there's no staff-facing
+way to advance it yet.
+- The 3 hardcoded sample tickets (`DEMO_TICKETS` in `tracker-data.ts`) and
+  the "try a demo ticket" quick-links were removed once real bookings
+  went live in production — every lookup now hits the real
+  `/api/track/[id]` endpoint (`src/lib/booking-store.ts` → Supabase).
+- Enter a ticket number → see a stepper:
   **Dropped Off → Diagnosing → Repairing → Quality Check → Ready for Pickup**
 - Each step gets a timestamp + a short geek-toned note ("Battery's out, new
   one's going in now") instead of sterile status text — matches the casual
   small-shop tone from the brief.
 - Visual: horizontal stepper on desktop, vertical on mobile, active step
   pulses/glows in brand red.
-- Optional nice-touch: SMS/email opt-in checkbox on the form (non-functional
-  for demo, but shows the product thinking — "text me when it's ready").
-- Build note: pure client-side state + a small mock dataset keyed by ticket
-  number. No backend needed.
+- Still non-functional: the SMS/email opt-in checkbox on the ticket card
+  ("text me when it's ready") — no real notification pipeline yet.
+- To retire the "Demo feature" badge for real: give the shop's staff a way
+  to advance a ticket past step 0 (manual admin action, or a real
+  RepairShopr/RepairDesk integration per §5 Tier 1's second bullet).
 
 ### 2.2 Free Diagnostic / "What's Wrong With My Device?" Quiz Flow — skeleton shipped
 Shipped at `/diagnose`, linked from the footer sitemap and cross-linked
@@ -336,17 +348,24 @@ built here is a legitimate starting point to grow into a real system.
 ### Tier 1 — Real business operations (the actual point of the agent)
 - [x] **`book_mock_appointment` writes to a real, shared store** and a
   phone booking now shows up trackable at `/track`
-  (`src/lib/booking-store.ts`, `/api/track/[id]`) — full loop verified by
-  hand. Backed by Supabase/Postgres, not a key-value store — chosen to
-  match the stack the owner will actually inherit, and because it gives
-  a real table viewable in Supabase's free dashboard with no code. Still
-  needs the `bookings` table created (SQL in the file's header comment)
-  and `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` set in Vercel + redeploy
-  before it's durable in production; until then it's an honest in-memory
-  fallback (the tool's own response reports `trackable: false` and skips
-  telling callers to check `/track` when it can't actually promise that).
-  Optional free add-on: a Supabase database webhook → Make.com scenario
-  on insert, for a zero-code Slack/email ping the moment a booking lands.
+  (`src/lib/booking-store.ts`, `/api/track/[id]`). Backed by
+  Supabase/Postgres, not a key-value store — chosen to match the stack
+  the owner will actually inherit, and because it gives a real table
+  viewable in Supabase's free dashboard with no code. If Supabase isn't
+  configured it falls back to an honest in-memory store (the tool's own
+  response reports `trackable: false` and skips telling callers to check
+  `/track` when it can't actually promise that). Optional free add-on: a
+  Supabase database webhook → Make.com scenario on insert, for a
+  zero-code Slack/email ping the moment a booking lands.
+  - **Production status: confirmed working end-to-end (2026-08-26).**
+    `bookings` table + `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` set in
+    Vercel. Verified with a real test call through the deployed Vapi
+    agent's chat tester (booked "iPhone 16, cracked screen, Arnold,
+    tomorrow at 4, Anthony, 573-222-8293" → got back `PG-56276`), then
+    confirmed `GET /api/track/PG-56276` on production returns
+    `"found": true` with the matching device/issue/location/timestamp.
+    The full loop — Vapi tool call → Supabase insert → `/track` lookup —
+    is real in production, not just locally.
 - **Real appointment booking against the shop's actual system** — the
   above is a real *shared* record now, but it's still Phone Geeks' own
   minimal store, not the shop's real intake. Two paths depending on what
@@ -423,3 +442,114 @@ built here is a legitimate starting point to grow into a real system.
   natively; a weekly digest of what callers actually ask about is real
   market research the owner doesn't currently have (ties to §4.7's
   ops-digest idea, phone-specific).
+
+### Tier 5 — Bringing the agent onto the website itself
+- [x] **Header "Call Now" widget** (`src/components/layout/call-widget.tsx`,
+  `src/lib/use-vapi-call.ts`) — lets a website visitor talk to the same
+  Vapi assistant that answers the phone, right in the browser, via
+  `@vapi-ai/web`. Shows connecting/active/error states, a mute toggle, a
+  live-call indicator dot on the header button, and a call timer.
+  - **Honest fallback, not a fake widget:** until
+    `NEXT_PUBLIC_VAPI_PUBLIC_KEY` and `NEXT_PUBLIC_VAPI_ASSISTANT_ID` are
+    set in Vercel, the header renders a plain `tel:` link to the Arnold
+    shop's real number instead of a widget that implies an AI will pick
+    up. Once both are set (Vapi dashboard → API Keys → Public Key; the
+    assistant's ID from the Assistants page) and redeployed, the real
+    widget takes over automatically — no code change needed.
+  - Verified: builds and lints clean with and without the env vars set;
+    manually tested in a real browser (Playwright) — desktop and mobile
+    fallback states, the configured idle/connecting/error states, and a
+    real bug where the popover was clipped by the mobile nav's
+    `overflow-hidden` collapse wrapper (fixed by portaling the panel to
+    `document.body` with `position: fixed`, positioned from the button's
+    bounding rect). Not yet tested against a *real* Vapi public key/call —
+    that needs the actual credentials, which aren't set yet.
+  - "Prefer a person? Call ###" is always visible in every non-active
+    panel state — the AI option never strands someone without a real
+    human fallback.
+- **Chat widget with chat-to-call handoff** — researched, not built.
+  Vapi has two separate real products that could combine for this: the
+  Web SDK used above (voice-first, and its `send()` method can inject
+  text messages into a *live* voice session) and a newer, separate Chat
+  API (OpenAI-compatible text endpoint using the same assistant config).
+  Could not confirm from official docs that Vapi ships a single packaged
+  widget that auto-carries a text conversation into a voice call with
+  shared context — `docs.vapi.ai` is blocked from this sandbox, so this
+  is based on secondhand search results and the SDK's GitHub README, not
+  the actual widget docs. Best next step before building: read
+  `docs.vapi.ai/chat/web-widget` directly (not blocked outside this
+  sandbox) to confirm the real mechanism, likely either (a) a genuine
+  built-in handoff, or (b) something we'd assemble ourselves — run the
+  Chat API for text, then start a Web SDK call seeded with the chat
+  transcript as context when the user asks to switch to voice.
+
+---
+
+## 6. Owner Management Dashboard — Planning (not built yet)
+
+The idea: a single, low-key "Management" link in the site footer that
+gateways to a private dashboard aggregating everything built across this
+whole engagement — website traffic, phone agent activity, and demo/tool
+usage — in one place. This is what actually proves the value the
+commission structure is based on, rather than the owner having to piece
+it together from four different tools (or take it on faith).
+
+**This is a plan, not a build** — the security question below has to be
+answered before a link like this goes anywhere near the live footer, and
+it's not answered yet.
+
+### What it would show
+- **Site health** — traffic and Core Web Vitals, straight from Vercel
+  Analytics/Speed Insights (§1, just added).
+- **Phone agent activity** — call volume, what callers actually asked
+  about, how many turned into a booking. Source: Vapi's call
+  logs/transcripts, plus a straight count query against Supabase's
+  `bookings` table (§5 Tier 1) for "how many real appointments has Casey
+  booked." This is the single most important number for the deal
+  structure — it's the receipt for "the agent generated a lead or a
+  sale."
+- **Demo/tool engagement** — how often `/diagnose`, `/track`, and
+  `/retail` actually get used. Nothing currently logs this (they're pure
+  client-side interactions with no analytics event today) — would need a
+  handful of `track()` calls via the Vercel Analytics package already
+  installed (it supports custom events, not just page views) rather than
+  a new system.
+- **Lead capture**, once §5 Tier 1's attribution logging exists — same
+  place this dashboard would read from.
+
+### Open question: how is this actually secured?
+A public link labeled "Management" in the footer of a live marketing
+site is a real exposure risk the moment there's anything behind it worth
+looking at — this can't just be an unauthenticated route. Two options,
+roughly in order of effort:
+1. **v1 — simple password gate.** A single shared password in an env var
+   (`MANAGEMENT_PASSWORD`), checked server-side, sets a signed cookie on
+   success. Fast to build, zero new infrastructure, fine for "one owner,
+   one password" — but it's a shared secret, not a real account, and
+   doesn't scale past that.
+2. **v2 — real auth via Supabase Auth.** Already in the stack for the
+   booking store (§5), and its free tier includes email/password or
+   magic-link auth. One real owner account instead of a shared password.
+   Worth doing once this is more than a proof-of-concept, not necessary
+   for the first version.
+
+Leaning toward v1 to start, given the "free until proven" framing — it's
+enough to demo the concept honestly, and upgrading to v2 later doesn't
+touch anything else (no data model changes, just swaps the gate).
+
+### Open question: is Vercel Analytics data actually pullable for free?
+The dashboard's own Vercel tab is free on Hobby — but whether the *data
+itself* is accessible via API for embedding into a custom page (rather
+than just viewed in Vercel's UI) may require a paid plan. Needs
+verifying against Vercel's current pricing before promising this tile
+exists in v1 — if it's not available free, the management page can still
+deep-link out to Vercel's own dashboard for that section rather than
+faking it.
+
+### Rough shape, once built
+`/management` route, password-gated (v1) or Supabase-Auth-gated (v2),
+with a handful of stat cards pulling from Supabase (bookings count, demo
+tool events) plus either embedded or linked-out Vercel/Vapi views for
+the pieces that live in those platforms' own dashboards. Footer link is
+deliberately plain/unstyled — this isn't a customer-facing feature, it
+shouldn't look like one.
