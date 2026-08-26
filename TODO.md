@@ -343,16 +343,27 @@ built here is a legitimate starting point to grow into a real system.
 - [x] **`book_mock_appointment` writes to a real, shared store** and a
   phone booking now shows up trackable at `/track`
   (`src/lib/booking-store.ts`, `/api/track/[id]`) — full loop verified by
-  hand. Backed by Supabase/Postgres, not a key-value store — chosen to
-  match the stack the owner will actually inherit, and because it gives
-  a real table viewable in Supabase's free dashboard with no code. Still
-  needs the `bookings` table created (SQL in the file's header comment)
-  and `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` set in Vercel + redeploy
-  before it's durable in production; until then it's an honest in-memory
+  hand in local dev. Backed by Supabase/Postgres, not a key-value store —
+  chosen to match the stack the owner will actually inherit, and because
+  it gives a real table viewable in Supabase's free dashboard with no
+  code. Until it's durable in production, it's an honest in-memory
   fallback (the tool's own response reports `trackable: false` and skips
   telling callers to check `/track` when it can't actually promise that).
   Optional free add-on: a Supabase database webhook → Make.com scenario
   on insert, for a zero-code Slack/email ping the moment a booking lands.
+  - **Production status:** `bookings` table SQL run and
+    `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` set in Vercel (per owner
+    confirmation, 2026-08-26). Indirectly verified — the
+    `[booking-store] No Supabase configured...` warning that fires on
+    every local build when those env vars are missing is absent from the
+    latest production build log (`dpl_5drupvDTgSn7adxffGYKZjDFaADm`,
+    commit `e040006`), meaning the client initialized successfully at
+    build time. Not yet proven end-to-end: no request has hit
+    `/api/vapi/book-appointment` in production yet (0 runtime-log
+    traffic in the last hour), so the actual insert/lookup round-trip
+    against the real table is still unconfirmed. Next real test call or
+    booking should report back whether the response says
+    `"trackable": true` — that's the one fully conclusive check left.
 - **Real appointment booking against the shop's actual system** — the
   above is a real *shared* record now, but it's still Phone Geeks' own
   minimal store, not the shop's real intake. Two paths depending on what
