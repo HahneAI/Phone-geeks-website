@@ -26,8 +26,19 @@ import { createClient } from "@supabase/supabase-js";
  *     caller_name text not null,
  *     callback_number text not null,
  *     preferred_time text,
- *     created_at timestamptz not null default now()
+ *     created_at timestamptz not null default now(),
+ *     vapi_call_id text
  *   );
+ *
+ * If the `bookings` table already exists from before `vapi_call_id` was
+ * added (lead attribution, TODO.md §5 Tier 1), run this once instead:
+ *
+ *   alter table bookings add column if not exists vapi_call_id text;
+ *
+ * Not running that migration isn't catastrophic — saveBooking() below
+ * detects a missing column and retries the insert without it, so
+ * bookings keep working either way; you just lose call attribution on
+ * whatever comes in before the column exists.
  *
  * Env vars needed (Vercel project settings → Environment Variables):
  *   SUPABASE_URL              — Project Settings → API → Project URL
@@ -51,6 +62,14 @@ export interface PhoneBooking {
   callbackNumber: string;
   preferredTime?: string;
   createdAt: string;
+  /**
+   * The Vapi call this booking was made on, when known — lets
+   * /management correlate a call in Vapi's Calls API (vapi-analytics.ts)
+   * back to a real booking, i.e. actual lead attribution rather than two
+   * unconnected counts. Optional: unset for bookings made before this
+   * field existed, or if Vapi's payload didn't include a call id.
+   */
+  vapiCallId?: string;
 }
 
 const url = process.env.SUPABASE_URL;
@@ -85,6 +104,8 @@ interface BookingRow {
   callback_number: string;
   preferred_time: string | null;
   created_at: string;
+  /** Optional/absent entirely on rows from before the migration above. */
+  vapi_call_id?: string | null;
 }
 
 function toRow(booking: PhoneBooking): BookingRow {
@@ -98,6 +119,7 @@ function toRow(booking: PhoneBooking): BookingRow {
     callback_number: booking.callbackNumber,
     preferred_time: booking.preferredTime ?? null,
     created_at: booking.createdAt,
+    vapi_call_id: booking.vapiCallId ?? null,
   };
 }
 
@@ -112,14 +134,42 @@ function fromRow(row: BookingRow): PhoneBooking {
     callbackNumber: row.callback_number,
     preferredTime: row.preferred_time ?? undefined,
     createdAt: row.created_at,
+    vapiCallId: row.vapi_call_id ?? undefined,
   };
+}
+
+/** True if a Postgres error looks like "this column doesn't exist yet". */
+function isMissingColumnError(message: string): boolean {
+  return /column .*vapi_call_id.* does not exist|could not find.*vapi_call_id/i.test(
+    message
+  );
 }
 
 export async function saveBooking(booking: PhoneBooking): Promise<void> {
   const key = normalizeReference(booking.reference);
   if (supabase) {
-    const { error } = await supabase.from("bookings").insert(toRow(booking));
-    if (error) throw new Error(`Supabase insert failed: ${error.message}`);
+    const row = toRow(booking);
+    const { error } = await supabase.from("bookings").insert(row);
+    if (error) {
+      // The `vapi_call_id` migration (see this file's header comment)
+      // may not have been run yet — don't lose the booking over it,
+      // retry without that one column instead.
+      if (isMissingColumnError(error.message)) {
+        const { vapi_call_id: _omit, ...withoutCallId } = row;
+        void _omit;
+        const retry = await supabase.from("bookings").insert(withoutCallId);
+        if (retry.error) {
+          throw new Error(`Supabase insert failed: ${retry.error.message}`);
+        }
+        console.warn(
+          "[booking-store] `vapi_call_id` column doesn't exist yet — " +
+            "booking saved without call attribution. Run the migration " +
+            "in this file's header comment to fix."
+        );
+        return;
+      }
+      throw new Error(`Supabase insert failed: ${error.message}`);
+    }
   } else {
     memoryStore.set(key, booking);
   }
@@ -172,4 +222,32 @@ export async function getBookingsCount(): Promise<number> {
     return count ?? 0;
   }
   return memoryStore.size;
+}
+
+/**
+ * Every Vapi call id that resulted in a real booking — lets
+ * /management (via vapi-analytics.ts) mark which of Vapi's own recent
+ * calls actually converted, real lead attribution instead of two
+ * unrelated counts sitting next to each other. Returns an empty set
+ * (not an error) if the `vapi_call_id` column doesn't exist yet —
+ * same "no attribution data yet" story as no bookings existing at all.
+ */
+export async function listAttributedCallIds(): Promise<Set<string>> {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("vapi_call_id")
+      .not("vapi_call_id", "is", null);
+    if (error) return new Set();
+    return new Set(
+      (data as { vapi_call_id: string | null }[])
+        .map((row) => row.vapi_call_id)
+        .filter((id): id is string => Boolean(id))
+    );
+  }
+  return new Set(
+    [...memoryStore.values()]
+      .map((b) => b.vapiCallId)
+      .filter((id): id is string => Boolean(id))
+  );
 }

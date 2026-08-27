@@ -366,29 +366,49 @@ built here is a legitimate starting point to grow into a real system.
     `"found": true` with the matching device/issue/location/timestamp.
     The full loop — Vapi tool call → Supabase insert → `/track` lookup —
     is real in production, not just locally.
-- **Real appointment booking against the shop's actual system** — the
-  above is a real *shared* record now, but it's still Phone Geeks' own
-  minimal store, not the shop's real intake. Two paths depending on what
-  they use:
-  - If they use RepairShopr/RepairDesk/similar: call that platform's API
-    directly to create a real ticket — the agent's booking *is* the
-    shop's real intake, no parallel system needed.
-  - If not: Google Calendar API (one calendar per location) is the
-    lowest-effort real option — checks actual open slots instead of just
-    collecting a stated preference.
+- **Real appointment booking against the shop's actual system — decided,
+  2026-08-27: staying on Supabase for now.** The owner doesn't know yet
+  whether the shop runs RepairShopr/RepairDesk, so there's no real
+  system to integrate against today. Supabase remains the real, shared
+  booking store; revisit the RepairShopr/RepairDesk-vs-Google-Calendar
+  fork once that's actually known. Not blocking further Tier 1 work.
 - **Real SMS confirmations** — Vapi supports sending SMS natively during
   or after a call (no separate Twilio integration needed, confirmed via
   Vapi's own docs). Use it for the booking confirmation and the "text me
   when it's ready" opt-in already mocked on `/track`.
-- **Real email** — swap Resend (or similar) in for the Estimate wizard's
-  and phone agent's "we'll email you" messaging, which is currently just
-  copy with nothing behind it.
-- **Lead capture / attribution** — log every call (caller info, what they
-  asked about, whether it became a booking) somewhere the owner can see,
-  even just a Google Sheet via Make.com to start. This directly matters for
-  the deal structure: proving the agent generated a lead or a sale is
-  what the commission is based on, so this isn't optional polish — it's
-  the receipt for the work.
+- **Real email — deliberately on hold, 2026-08-27** (owner's call): not
+  worth signing up for Resend or similar yet. The Estimate wizard's and
+  phone agent's "we'll email you" messaging stays as copy with nothing
+  behind it until this is revisited.
+- [x] **Lead capture / attribution — built, 2026-08-27.** Every phone
+  booking now carries the real Vapi call id it was made on
+  (`vapiCallId` on `PhoneBooking`, `vapi_call_id` column in Supabase),
+  captured from `message.call.id` on the tool-call webhook
+  (`src/lib/vapi.ts`'s new `VapiToolContext`, threaded through
+  `handleVapiTools` → `book-appointment/route.ts`). `/management`'s
+  Caller data section (§6) now cross-references Vapi's own recent calls
+  against real bookings (`listAttributedCallIds()` in
+  `booking-store.ts`) and shows, per period, how many calls actually
+  became a booking — a real conversion rate, not just two counts sitting
+  next to each other. This is the actual "receipt" the deal structure
+  needs: proof the agent generated a booking, not just that it took
+  calls.
+  - **Schema change needed on existing Supabase projects**: run
+    `alter table bookings add column if not exists vapi_call_id text;`
+    in the Supabase SQL editor (full statement in `booking-store.ts`'s
+    header comment). Not urgent — `saveBooking()` detects a missing
+    column and retries the insert without it, so bookings keep working
+    either way; you just don't get attribution on whatever comes in
+    before the migration runs.
+  - **Unverified against real docs** (`docs.vapi.ai` still blocked from
+    this sandbox): that `message.call.id` is really where the call id
+    lives on the tool-calls webhook payload. Confirmed via search
+    results only, not Vapi's actual reference docs — read defensively
+    (`context.callId` is simply `undefined` if the field isn't there,
+    never throws), so a wrong guess here degrades to "no attribution for
+    that booking," not a broken booking. Worth confirming for real once
+    a live booking's attribution can be checked against Vapi's own call
+    log for the same call.
 
 ### Tier 2 — Repair-shop-specific integrations
 - **RepairShopr/RepairDesk API** (if applicable, see assumption above) —
