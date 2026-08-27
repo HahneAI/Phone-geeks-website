@@ -981,3 +981,99 @@ confirmed flowing.
 - `/diagnose`'s decision-tree flow instrumented with `track()` events —
   currently emits nothing measurable server-side (§2.2), which blocks
   the diagnostic-path-vs-direct-path comparison in 7.1.
+
+---
+
+## 8. Warehouse Workflow — Scannable Job Tickets & Parts Backorder Queue (brainstorm, rough draft)
+
+Owner's rough-draft idea, 2026-08-27: run the repair floor more like a real
+warehouse — each device/job gets a scannable code so a tech can advance it
+through repair stages with a scan instead of typing into an admin screen,
+and separately, track backordered parts against the specific device
+waiting on them, surfaced first-in-first-out so nobody has to remember by
+hand which device gets a part first once it arrives. This is the real,
+concrete fix for the gap §2.1 already flagged — "every ticket currently
+starts and stays at step 0 since there's no staff-facing way to advance
+it" — just via a scanner instead of a manual toggle. Investigation below,
+nothing built yet.
+
+### 8.1 Scannable stage transitions — the easy version needs no scanner at all
+The cheapest real version of "scannable" doesn't need a camera-scanning
+library, a native app, or even a "Scan" button in `/management`: a QR
+code is just a picture that encodes a URL, and every phone's stock camera
+app already decodes a QR code into a tappable link with zero setup. So:
+- Each ticket gets a QR code (generated server-side with a plain JS
+  library like `qrcode` — no external API, no cost) printed on the
+  intake slip/label, encoding a link like
+  `https://phone-geeks-website.vercel.app/management/tickets/PG-56276/advance`.
+- A tech just points their phone's camera at the label, taps the
+  notification, and the page (gated behind the existing
+  `MANAGEMENT_PASSWORD` session, same as the rest of `/management`)
+  shows the ticket's current stage with one button: "Mark: Diagnosing"
+  → "Mark: Repairing", etc. — advancing `TRACKER_STEPS`
+  (`src/lib/tracker-data.ts`, already the exact 5-stage sequence
+  `/track` renders) by one, for real, in Supabase.
+- **v2, not needed to start**: an in-app scanner (browser
+  `BarcodeDetector` API where supported, or the `jsQR` library as a
+  fallback) so a tech never has to leave `/management` at all. Worth
+  doing once the basic scan-a-label flow is proven out, not before.
+- **Real open question**: a link that *mutates* a ticket's status can't
+  just be a bare public URL — anyone who photographs the label could
+  advance (or customers scanning out of curiosity could get confused
+  seeing) a status page. Since it's already gated behind
+  `MANAGEMENT_PASSWORD`, an unauthenticated scan just redirects to
+  `/management/login` first, same as any other `/management` route — no
+  new auth mechanism needed, just confirming the ticket-detail route
+  lives under the existing `(dashboard)` route group.
+
+### 8.2 Real job tickets — the actual missing piece underneath this
+Neither the QR flow above nor a FIFO parts queue can exist yet, because
+**there's no real "current stage" field for a ticket to advance today.**
+`bookings` (`src/lib/booking-store.ts`) only has creation-time fields
+(device, issue, location, caller info, timestamp) — no status/step
+column at all. `TRACKER_STEPS` and `DemoTicket.currentStep` are a UI
+shape `/track` renders, not something durable any real ticket is stored
+against; every real (phone-booked) ticket hardcodes `currentStep: 0` in
+`/api/track/[id]/route.ts` today specifically because there's nowhere
+real to read a different value from.
+- Needs a real `current_step` (or `status`) column somewhere — either
+  extend `bookings`, or (more likely the right call) a new `tickets`
+  table, since not every real ticket originates from a phone booking —
+  a walk-in who never called still needs a job ticket, and `bookings`
+  is specifically the phone-agent's table today.
+- If a new `tickets` table: decide whether phone bookings become a
+  ticket automatically on creation (device physically isn't at the shop
+  yet, so maybe stays "step -1"/"requested" until check-in), or whether
+  check-in is a distinct real-world event that creates the ticket. This
+  is a real workflow question for the shop, not just a schema one.
+
+### 8.3 Backordered parts ↔ pending device, shown FIFO
+Once 8.2 exists (a real ticket to link against), the parts side is
+mechanically simple:
+- New table, e.g. `part_orders`: part name, supplier, `ordered_at`,
+  expected date, status (`ordered` / `received`), and a `ticket_id`
+  foreign key to whichever device is waiting on it.
+- **FIFO is just `order by ordered_at`** — no queue infrastructure
+  needed, a straight sort on when each part was ordered gives the
+  "whoever's been waiting longest goes first" view directly. A
+  "Waiting on Parts" list (a new `/management` tab, or a section on
+  Stock) shows blocked tickets oldest-first; marking a part `received`
+  flags its linked ticket ready to resume.
+- One part order per device covers the common case even when several
+  devices need the *same* part — multiple `part_orders` rows, same part
+  name, different `ticket_id`, naturally sort into the right order
+  without any extra "queue position" field to keep in sync by hand.
+
+### What this needs first (prerequisites, in order)
+1. **8.2's data model decided** — nothing in 8.1 or 8.3 has anywhere
+   real to attach to until there's an actual ticket record with a
+   status field, separate from `bookings`' current "just a request"
+   shape.
+2. Whether the existing shared `MANAGEMENT_PASSWORD` is granular enough
+   once multiple staff are independently scanning tickets, or whether
+   this is what finally pushes `/management` toward the real-accounts
+   v2 auth option already named in §6 (worth knowing *before* handing
+   out a scan-to-advance flow to a whole shop floor, not after).
+3. A real-world, non-software dependency: someone still has to print and
+   physically attach a QR label to each device/ticket — no amount of
+   code removes that step.
