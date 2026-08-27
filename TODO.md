@@ -428,6 +428,27 @@ built here is a legitimate starting point to grow into a real system.
   `book_mock_appointment`'s description there, which had gone stale
   claiming it "does not persist anywhere durable" — it has, since §5
   Tier 1 shipped.
+  - **Found, 2026-08-27: the tool description fix alone wasn't enough.**
+    After re-pasting the tool JSON, the live chat widget was still
+    saying "I can do a demo stock check for you" and "this is a mock
+    check — not a live inventory system" on every stock question,
+    regardless of what `check_stock` actually returned. Root cause: the
+    assistant's own **starting prompt/system prompt** in
+    `vapi-front-desk-agent-brief.md` §1/§3 — a separate thing from the
+    tool JSON, and the thing that actually drives how Casey talks —
+    hard-coded "always call stock a demo/mock check" and "always call a
+    booking a demo booking," independent of any real tool response.
+    Fixed the prompt text to relay whichever the `check_stock`/
+    `book_mock_appointment` tool responses actually say (both already
+    carry an honest real-vs-placeholder note) instead of asserting one
+    or the other. Also added explicit guidance for a vague stock
+    question ("do you have any iPhones?") to ask which model before
+    calling the tool, since `check_stock` matches one specific item, not
+    a whole category — a bare "any" was observed producing a vague
+    non-answer instead of a real lookup. **Needs re-pasting into Vapi's
+    assistant configuration** (the prompt, not just the tools) to take
+    effect — not verified live yet, since this repo has no write access
+    to the assistant itself.
   - Still not synced from a real shop POS/inventory system (the
     RepairShopr/RepairDesk question below) — someone still updates
     counts by hand, just in Supabase's table editor instead of a TS
