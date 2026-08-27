@@ -75,6 +75,7 @@ export function VapiChatWidget() {
       // note above.
       mode={activeCallSource === "header" ? "chat" : "hybrid"}
       position="bottom-left"
+      size="compact"
       theme="light"
       accentColor="#e0332c"
       ctaButtonColor="#0b2a4a"
