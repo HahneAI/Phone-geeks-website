@@ -12,12 +12,17 @@
  * isn't a secret either — it's hardcoded below with an env override in
  * case this ever moves to a different team.
  *
- * IMPORTANT: Web Analytics is its own opt-in toggle per project
- * (Vercel Dashboard -> your project -> Analytics tab -> Enable) —
- * same story as Speed Insights not showing data until enabled. Until
- * that's flipped on, this API 404s with "Web Analytics not found" and
- * getWebAnalyticsSummary() reports that honestly (reason:
- * "not-enabled") instead of silently showing zeroes.
+ * IMPORTANT (updated 2026-08-26): this API 404s with "Web Analytics not
+ * found" for this project even though the Vercel dashboard's own
+ * Analytics tab shows real visitor data — so it is NOT a simple "flip a
+ * toggle" situation like Speed Insights. Root cause unconfirmed; the
+ * leading theory (also unconfirmed) is that the query API needs a paid
+ * Vercel plan separately from the free dashboard view. Don't upgrade
+ * plans on this alone — check with Vercel directly first. Until this is
+ * resolved, getWebAnalyticsSummary() reports the 404 honestly (reason:
+ * "not-enabled") instead of silently showing zeroes; see the
+ * user-facing copy in src/app/management/page.tsx for the exact
+ * wording shown on the dashboard.
  */
 
 const DEFAULT_TEAM_ID = "team_Q8xxQArDaIZW4h7Mvl2Mis93";
@@ -102,7 +107,8 @@ async function vercelFetch(
       return {
         ok: false,
         reason: "not-enabled",
-        message: "Web Analytics isn't enabled for this project yet.",
+        message:
+          "Vercel's Web Analytics API returned 404 for this project (dashboard shows data; API access may need a paid plan — unconfirmed).",
       };
     }
     if (!res.ok) {

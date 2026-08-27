@@ -51,7 +51,7 @@ const ANALYTICS_ERROR_MESSAGES: Record<string, string> = {
   "not-configured":
     "VERCEL_API_TOKEN isn't set on this deployment yet — create one in Vercel (Account Settings → Tokens) and add it as an env var to pull traffic in here.",
   "not-enabled":
-    "Web Analytics isn't enabled for this project yet — turn it on in Vercel (Project → Analytics → Enable), then this fills in automatically.",
+    "Vercel's Web Analytics API isn't returning data for this project yet, even though the Vercel dashboard itself shows real visitors — this may require upgrading to a paid Vercel plan, though that isn't confirmed (worth checking with Vercel directly before upgrading on this alone). Data here may also just start flowing once the site has more real traffic for Vercel to base results on.",
   error: "Couldn't reach Vercel's Analytics API just now.",
 };
 

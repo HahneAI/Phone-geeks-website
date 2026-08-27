@@ -543,27 +543,37 @@ plan below — option 1, a single shared password.
   pulled in directly yet (Core Web Vitals). Demo/tool usage tracking
   (`/diagnose`, `/track`, `/retail`) is still not built — same gap called
   out below.
-- **Site traffic is now pulled in live from Vercel's own Web Analytics
-  REST API**, resolving the "is Vercel Analytics data actually pullable
-  for free?" open question below — yes, it's a normal REST API, no paid
-  plan required. `src/lib/vercel-analytics.ts` calls
-  `visits/count` (7d + 30d visitors/pageviews) and `visits/aggregate`
-  (top 5 pages, 7d) using one new secret, **`VERCEL_API_TOKEN`** (create
-  at Vercel → Account Settings → Tokens), plus the auto-provided
-  `VERCEL_PROJECT_ID` and a hardcoded team ID (not a secret, overridable
-  via `VERCEL_TEAM_ID`).
-  - **Confirmed live against this actual project (via the Vercel MCP
-    tools, 2026-08-26) that Web Analytics itself isn't enabled yet** —
-    the API 404s with "Web Analytics not found," the same story as the
-    Speed Insights toggle from §1. The dashboard card reports this
-    honestly (`reason: "not-enabled"`) rather than showing zeroes; once
-    both `VERCEL_API_TOKEN` is set and Web Analytics is switched on
-    (Project → Analytics → Enable), the card fills in automatically with
-    no further code changes.
+- **Site traffic is wired up against Vercel's own Web Analytics REST
+  API** — `src/lib/vercel-analytics.ts` calls `visits/count` (7d + 30d
+  visitors/pageviews) and `visits/aggregate` (top 5 pages, 7d) using one
+  new secret, **`VERCEL_API_TOKEN`** (create at Vercel → Account
+  Settings → Tokens), plus the auto-provided `VERCEL_PROJECT_ID` and a
+  hardcoded team ID (not a secret, overridable via `VERCEL_TEAM_ID`).
+  - **Open, not resolved:** the "is Vercel Analytics data actually
+    pullable for free?" question from below is still open. Confirmed
+    live against this actual project (via the Vercel MCP tools,
+    2026-08-26, re-checked 2026-08-27) that this API 404s with "Web
+    Analytics not found" — **but the Vercel dashboard's own Analytics
+    tab shows real visitor data for the same project at the same time**,
+    so this is not the simple "flip the Analytics toggle on" story it
+    first looked like (see §1). Root cause unconfirmed; leading
+    unconfirmed theory is that the query API needs a paid Vercel plan
+    separately from the free dashboard view — a generic Pro-upgrade
+    screen checked 2026-08-27 didn't list Web Analytics or Speed
+    Insights among its features either, so that's not confirmed yet.
+    The card reports this honestly (`reason: "not-enabled"`, copy in
+    `src/app/management/page.tsx`) rather than showing zeroes, naming
+    both the possible-paid-plan explanation and the possibility that it
+    just needs more real traffic before Vercel has enough to report —
+    next step is asking Vercel directly rather than guessing further or
+    buying a plan on spec.
   - Speed Insights (Core Web Vitals) is not pulled in the same way yet —
-    still just a link-out. Vercel's Speed Insights has its own separate
-    query API; worth doing as a follow-up once Web Analytics is
-    confirmed working end-to-end.
+    still just a link-out. Its own dashboard panel (checked 2026-08-27)
+    shows "No data available" with no enable toggle either, plus an
+    "Available in Plus" upsell specifically on the detailed FCP/LCP/INP
+    metrics — likely just needs more real traffic (the code side was
+    already confirmed correct earlier), not a config fix. Worth
+    revisiting once Web Analytics is sorted out.
 - **Chat widget data and Caller data sections added**, following the
   merge of §5 Tier 5's floating chat+voice widget
   (`vapi-chat-widget.tsx`) into `main` — both the header call widget and
