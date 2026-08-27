@@ -508,7 +508,7 @@ built here is a legitimate starting point to grow into a real system.
 
 ---
 
-## 6. Owner Management Dashboard — Planning (not built yet)
+## 6. Owner Management Dashboard — v1 shipped (password-gated)
 
 The idea: a single, low-key "Management" link in the site footer that
 gateways to a private dashboard aggregating everything built across this
@@ -517,9 +517,105 @@ usage — in one place. This is what actually proves the value the
 commission structure is based on, rather than the owner having to piece
 it together from four different tools (or take it on faith).
 
-**This is a plan, not a build** — the security question below has to be
-answered before a link like this goes anywhere near the live footer, and
-it's not answered yet.
+**v1 is built**, per the "Open question: how is this actually secured?"
+plan below — option 1, a single shared password.
+- `/management` (`src/app/management/page.tsx`), gated by `src/proxy.ts`
+  (Next 16 renamed `middleware.ts` → `proxy.ts`; the old name now logs a
+  deprecation warning at build time) — any request to `/management` or a
+  sub-route without a valid session cookie redirects to
+  `/management/login`.
+- One env var to set in Vercel: **`MANAGEMENT_PASSWORD`**. No password
+  set → login always fails with an honest "not configured" message
+  instead of silently accepting anything.
+- `src/lib/management-auth.ts` signs the session cookie with an HMAC
+  (Web Crypto, keyed on `MANAGEMENT_PASSWORD` itself) so a visitor can't
+  just set their own "logged in" cookie — only someone who already knows
+  the password could forge a valid one. 30-day session, httpOnly +
+  Secure + SameSite=Lax cookie.
+- Login is a real Next.js Server Action (`src/app/management/actions.ts`)
+  with a plain `<form>`, so it degrades gracefully without JS.
+- Dashboard content so far: total phone-booking count and a recent-
+  bookings table, both live from Supabase via `booking-store.ts`'s new
+  `getBookingsCount()`/`listRecentBookings()` (page is
+  `force-dynamic` — never statically cached); falls back to an honest
+  "not durable yet" notice when Supabase isn't configured. Plus link-out
+  cards to Vercel, Vapi, and Supabase's own dashboards for everything not
+  pulled in directly yet (Core Web Vitals). Demo/tool usage tracking
+  (`/diagnose`, `/track`, `/retail`) is still not built — same gap called
+  out below.
+- **Site traffic is wired up against Vercel's own Web Analytics REST
+  API** — `src/lib/vercel-analytics.ts` calls `visits/count` (7d + 30d
+  visitors/pageviews) and `visits/aggregate` (top 5 pages, 7d) using one
+  new secret, **`VERCEL_API_TOKEN`** (create at Vercel → Account
+  Settings → Tokens), plus the auto-provided `VERCEL_PROJECT_ID` and a
+  hardcoded team ID (not a secret, overridable via `VERCEL_TEAM_ID`).
+  - **Open, not resolved:** the "is Vercel Analytics data actually
+    pullable for free?" question from below is still open. Confirmed
+    live against this actual project (via the Vercel MCP tools,
+    2026-08-26, re-checked 2026-08-27) that this API 404s with "Web
+    Analytics not found" — **but the Vercel dashboard's own Analytics
+    tab shows real visitor data for the same project at the same time**,
+    so this is not the simple "flip the Analytics toggle on" story it
+    first looked like (see §1). Root cause unconfirmed; leading
+    unconfirmed theory is that the query API needs a paid Vercel plan
+    separately from the free dashboard view — a generic Pro-upgrade
+    screen checked 2026-08-27 didn't list Web Analytics or Speed
+    Insights among its features either, so that's not confirmed yet.
+    The card reports this honestly (`reason: "not-enabled"`, copy in
+    `src/app/management/page.tsx`) rather than showing zeroes, naming
+    both the possible-paid-plan explanation and the possibility that it
+    just needs more real traffic before Vercel has enough to report —
+    next step is asking Vercel directly rather than guessing further or
+    buying a plan on spec.
+  - Speed Insights (Core Web Vitals) is not pulled in the same way yet —
+    still just a link-out. Its own dashboard panel (checked 2026-08-27)
+    shows "No data available" with no enable toggle either, plus an
+    "Available in Plus" upsell specifically on the detailed FCP/LCP/INP
+    metrics — likely just needs more real traffic (the code side was
+    already confirmed correct earlier), not a config fix. Worth
+    revisiting once Web Analytics is sorted out.
+- **Chat widget data and Caller data sections added**, following the
+  merge of §5 Tier 5's floating chat+voice widget
+  (`vapi-chat-widget.tsx`) into `main` — both the header call widget and
+  the chat widget's voice mode talk to the same Vapi assistant
+  (`NEXT_PUBLIC_VAPI_ASSISTANT_ID`), so both needed a real place to show
+  up here instead of the old "not tracked yet" stub.
+  - **Chat widget data**: reads the `voice_call_connected` /
+    `voice_call_ended` / `voice_call_failed` custom events the chat
+    widget already fires via `@vercel/analytics`'s `track()` (added when
+    that widget was built) — `getChatWidgetSummary()` in
+    `vercel-analytics.ts`, same `VERCEL_API_TOKEN`/Web-Analytics-enabled
+    requirement as site traffic above, no new secret. Only covers the
+    widget's voice mode, honestly — its text-chat `onMessage` was
+    deliberately left un-instrumented when it was built (undocumented
+    payload shape), so this can't show chat-message volume yet.
+  - **Caller data**: real call volume/cost/duration/ended-reason from
+    Vapi's own Calls API (`GET https://api.vapi.ai/call`), scoped to
+    this site's assistant — `src/lib/vapi-analytics.ts`. Needs one new
+    secret, **`VAPI_PRIVATE_KEY`** (Vapi Dashboard → API Keys → Private
+    Key — never the same value as the already-public
+    `NEXT_PUBLIC_VAPI_PUBLIC_KEY`). Splits each period into web calls
+    (either site widget) vs. real phone calls using Vapi's own `type`
+    field, since Vapi doesn't tag a call by which widget started it.
+  - `docs.vapi.ai` is still blocked from this sandbox, so the Calls
+    API's exact query-parameter names for server-side date filtering
+    couldn't be verified — confirmed the endpoint/auth pattern
+    (`GET /call`, Bearer token) via search results instead, and to avoid
+    guessing at unverified filter params, `vapi-analytics.ts` fetches
+    the most recent 100 calls and buckets them into 7d/30d windows in
+    code. Fine at today's call volume; flagged in the code
+    (`truncated` field, surfaced in the UI) for whenever that stops
+    being true.
+  - Both sections use the same honest-fallback pattern as the rest of
+    this page — an amber notice naming exactly which env var is missing
+    rather than showing zeroes.
+- Footer link added (`src/components/layout/site-footer.tsx`), styled
+  plain/muted in the copyright bar as planned, not in the main sitemap
+  list.
+- Still open: v2 real auth (Supabase Auth) if this outgrows "one owner,
+  one password"; no rate limiting on login attempts yet (matches the
+  Vapi tool routes' Tier 0 gap — same class of issue, not yet hardened
+  anywhere on this project).
 
 ### What it would show
 - **Site health** — traffic and Core Web Vitals, straight from Vercel
@@ -569,10 +665,10 @@ exists in v1 — if it's not available free, the management page can still
 deep-link out to Vercel's own dashboard for that section rather than
 faking it.
 
-### Rough shape, once built
-`/management` route, password-gated (v1) or Supabase-Auth-gated (v2),
-with a handful of stat cards pulling from Supabase (bookings count, demo
-tool events) plus either embedded or linked-out Vercel/Vapi views for
-the pieces that live in those platforms' own dashboards. Footer link is
+### Rough shape — built as described, see above
+`/management` route, password-gated (v1, done) — a future Supabase-Auth
+v2 remains an option if needed later. Stat cards pull real Supabase data
+(bookings count) today; demo tool events aren't tracked yet. Vercel/Vapi
+sections are linked out rather than embedded for now. Footer link is
 deliberately plain/unstyled — this isn't a customer-facing feature, it
 shouldn't look like one.
