@@ -132,7 +132,7 @@ from the runtime request/response format above:
   "type": "function",
   "function": {
     "name": "check_stock",
-    "description": "Look up stock count for a refurbished phone/tablet or accessory at a specific Phone Geeks location. Fuzzy-matches the item name against the real demo catalog.",
+    "description": "Look up stock count for a refurbished phone/tablet or accessory at a specific Phone Geeks location. Fuzzy-matches the item name against the shop's real, owner-editable inventory (falls back to a demo catalog only if that isn't configured on the deployment).",
     "parameters": {
       "type": "object",
       "properties": {
@@ -178,7 +178,7 @@ from the runtime request/response format above:
   "type": "function",
   "function": {
     "name": "book_mock_appointment",
-    "description": "Record a mock repair appointment request. Does not touch a real calendar or persist anywhere durable — a human confirms it afterward. Returns a PG-##### reference number, same style as the site's /track demo tickets.",
+    "description": "Record a repair appointment request. Saves it to the shop's real, shared booking store (trackable at /track by its reference number) — but does not touch a real calendar or the shop's own scheduling system, and a human still confirms it afterward. Returns a PG-##### reference number.",
     "parameters": {
       "type": "object",
       "properties": {

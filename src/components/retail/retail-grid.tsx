@@ -4,17 +4,17 @@ import { useState } from "react";
 import { Smartphone, Package } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { RETAIL_ITEMS, type RetailItem } from "@/lib/retail-data";
+import { type RetailItem } from "@/lib/retail-data";
 import { LOCATIONS } from "@/lib/locations";
 import { StockBadge } from "./stock-badge";
 
 type LocationFilter = "all" | string;
 
-export function RetailGrid() {
+export function RetailGrid({ items }: { items: RetailItem[] }) {
   const [locationFilter, setLocationFilter] = useState<LocationFilter>("all");
 
-  const phones = RETAIL_ITEMS.filter((item) => item.category === "phone");
-  const accessories = RETAIL_ITEMS.filter((item) => item.category === "accessory");
+  const phones = items.filter((item) => item.category === "phone");
+  const accessories = items.filter((item) => item.category === "accessory");
 
   return (
     <div>

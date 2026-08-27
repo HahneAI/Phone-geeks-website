@@ -1,24 +1,27 @@
 import { handleVapiTools, type VapiToolCall } from "@/lib/vapi";
-import { RETAIL_ITEMS, getStockStatus, type RetailItem } from "@/lib/retail-data";
+import { getStockStatus, type RetailItem } from "@/lib/retail-data";
+import { getRetailItems } from "@/lib/retail-store";
 import { LOCATIONS } from "@/lib/locations";
 
 /**
  * Same word-overlap matching a voice caller's phrasing needs to survive
- * ("iPhone 13" vs. the catalog's "iPhone 13 (Refurbished)") — reads the
- * exact RETAIL_ITEMS array that /retail renders, so this can never answer
- * differently than the website does.
+ * ("iPhone 13" vs. the catalog's "iPhone 13 (Refurbished)") — matched
+ * against whatever getRetailItems() returns (real Supabase stock if
+ * configured, the static demo catalog otherwise — see
+ * src/lib/retail-store.ts), so this can never answer differently than
+ * /retail does.
  */
-function findItem(query: string): RetailItem | null {
+function findItem(items: RetailItem[], query: string): RetailItem | null {
   const q = query.toLowerCase().trim();
   if (!q) return null;
 
-  const exact = RETAIL_ITEMS.find((item) => item.name.toLowerCase() === q);
+  const exact = items.find((item) => item.name.toLowerCase() === q);
   if (exact) return exact;
 
   const qWords = q.split(/\s+/);
   let best: RetailItem | null = null;
   let bestScore = 0;
-  for (const item of RETAIL_ITEMS) {
+  for (const item of items) {
     const name = item.name.toLowerCase();
     const score = qWords.filter((w) => name.includes(w)).length;
     if (score > bestScore) {
@@ -35,14 +38,15 @@ function resolveLocations(location: unknown): string[] {
   return LOCATIONS.map((l) => l.slug); // "both" or unspecified
 }
 
-function checkStock(call: VapiToolCall) {
+async function checkStock(call: VapiToolCall) {
   const { item_name, location } = call.arguments;
   const query = String(item_name ?? "").trim();
-  const item = findItem(query);
+  const { items, durable } = await getRetailItems();
+  const item = findItem(items, query);
 
   if (!item) {
     return query
-      ? `I couldn't find a demo catalog match for "${query}". We carry refurbished iPhones, Galaxy phones, an iPad, and accessories like chargers, screen protectors, and cases — could you say the item again?`
+      ? `I couldn't find a catalog match for "${query}". We carry refurbished iPhones, Galaxy phones, an iPad, and accessories like chargers, screen protectors, and cases — could you say the item again?`
       : "I didn't catch which item you're asking about — could you say the product name again?";
   }
 
@@ -57,7 +61,9 @@ function checkStock(call: VapiToolCall) {
     price: item.price,
     condition: item.condition ?? null,
     stockByLocation: breakdown,
-    note: "This is demo stock data, not a live inventory feed.",
+    note: durable
+      ? "Live stock count from the shop's own inventory table."
+      : "This is demo stock data, not a live inventory feed — Supabase isn't configured on this deployment yet.",
   };
 }
 

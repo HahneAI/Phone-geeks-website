@@ -411,11 +411,67 @@ built here is a legitimate starting point to grow into a real system.
     log for the same call.
 
 ### Tier 2 — Repair-shop-specific integrations
-- **RepairShopr/RepairDesk API** (if applicable, see assumption above) —
-  real inventory counts replacing `retail-data.ts`, real repair status
-  replacing `tracker-data.ts`, real ticket creation replacing the mock
-  booking. This one integration would make almost every demo page on the
-  site real instead of mock, in one move.
+- [x] **Retail/parts stock — out of demo, 2026-08-27.** `/retail` and
+  the `check_stock` Vapi tool both now read from `src/lib/retail-store.ts`
+  — real, owner-editable stock in Supabase (a new `retail_items` table;
+  full `create table`/seed SQL in that file's header comment), same
+  pattern as `booking-store.ts` and reusing the exact same
+  `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` — **no new secret needed**.
+  Falls back to the old static `retail-data.ts` catalog (with an honest
+  "static snapshot" note, same as before) if Supabase isn't configured or
+  the table hasn't been seeded yet, so nothing breaks pre-migration.
+  `/retail` uses a 60s ISR revalidate rather than `force-dynamic` — stock
+  counts don't need /management's page-per-request freshness. Updated
+  the `check_stock` tool description in `vapi-front-desk-agent-brief.md`
+  (no longer says "demo catalog") — **needs re-pasting into Vapi's
+  dashboard**, this repo can't push that itself. Also fixed
+  `book_mock_appointment`'s description there, which had gone stale
+  claiming it "does not persist anywhere durable" — it has, since §5
+  Tier 1 shipped.
+  - Still not synced from a real shop POS/inventory system (the
+    RepairShopr/RepairDesk question below) — someone still updates
+    counts by hand, just in Supabase's table editor instead of a TS
+    file requiring a code deploy. That's the real gap this closes:
+    "demo, hand-edited in the repo" → "real, owner-editable, no deploy."
+  - Repair-parts inventory (screen/battery counts feeding the Estimate
+    wizard's turnaround) is still just the §4.3 idea, not built — this
+    only covers the retail/resale side.
+- **`get_repair_estimate` tuned and tested against realistic caller
+  phrasing, 2026-08-27.** Wrote a real test harness simulating actual
+  Vapi tool-call payloads (all three documented shapes — flat, nested
+  object-args, nested string-args — plus multi-call batching) against
+  both `/api/vapi/estimate` and `/api/vapi/stock` locally, covering
+  realistic phrasing per device category and deliberate edge cases
+  (empty/missing fields, gibberish, vague phrasing, wrong-casing
+  categories). Found and fixed two real matching bugs in
+  `matchSymptom()`:
+  - **Stopword inflation**: the old `word.length > 2` filter let common
+    function words like "the" count as real matching signal — some
+    symptom labels contain "the" twice (e.g. Screen Repair's "the
+    screen is cracked or the glass is broken"), so *any* caller
+    sentence containing "the" picked up 1–2 free points toward Screen
+    Repair specifically. Caught because "I dropped it in the toilet"
+    was matching **Screen Repair** instead of Water Damage Diagnostic —
+    a real, wrong, and slightly absurd answer a live caller could have
+    gotten. Fixed with a real stopword list (`STOPWORDS` in
+    `estimate/route.ts`).
+  - **Single generic word overmatch**: "it's just broken" was
+    confidently matching Screen Repair, because "broken" is real
+    content-word length but only appears in one label
+    ("...or the glass is broken") and doesn't actually identify what's
+    wrong. Checked every symptom `label` in `diagnose-data.ts` (not
+    `reasoning`, which isn't used for matching) before excluding it —
+    `broken` is the only such case in the current dataset, so this is a
+    short, evidence-based `TOO_GENERIC` list, not a guess at every
+    vague word that might theoretically cause the same problem.
+  - Also added tie-detection: two symptoms scoring equally on real
+    content words now falls through to the honest "come in for a free
+    look" fallback instead of silently picking whichever happens to be
+    first in the array — ambiguous phrasing shouldn't resolve to a
+    confident, possibly-wrong quote.
+  - Full suite (30+ cases across all 4 categories, edge cases, payload
+    shape variants, batching) passes after the fix. `check_stock` was
+    tested the same way and needed no changes — no bugs surfaced there.
 - **IMEI / blacklist check** for buyback and trade-in — before offering
   cash for a device, verify it isn't reported lost/stolen or carrier-
   locked, via an IMEI lookup API. Protects the shop from a bad buy and
