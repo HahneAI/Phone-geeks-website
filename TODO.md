@@ -514,12 +514,34 @@ built here is a legitimate starting point to grow into a real system.
     would need a server-side piece (this site's backend passing the chat
     transcript into the voice call's `assistantOverrides` via Vapi's
     *private* key) and isn't built.
-  - **Open product question, not decided here:** there are now two
-    independent ways to start a real voice call on the site (this widget,
-    and the header "Call Now" button) that don't share call state with
-    each other — someone could open both and start two simultaneously
-    billed calls. Worth deciding whether to keep both, or point this
-    widget's voice button at the header's shared call session instead.
+  - [x] **Double-call prevention — built, 2026-08-27**
+    (`src/lib/call-coordinator.ts`). There are still two independent
+    ways to start a real voice call on the site (this widget, and the
+    header "Call Now" button), but they can no longer both be live at
+    once: a plain module-level singleton tracks which one holds the
+    shared "call slot," and each side enforces it the way its SDK
+    actually allows —
+    - Header: `use-vapi-call.ts`'s `start()` calls `claimCallSlot()`
+      *before* touching `@vapi-ai/web` at all, and refuses (with a real
+      error message: "A call is already in progress in the chat
+      widget…") if the chat widget already holds it. The trigger button
+      itself is also disabled (`call-widget.tsx`) whenever the chat
+      widget has a live call, so there's nothing to click, not just an
+      error after the fact.
+    - Chat widget: the packaged `<VapiWidget>` exposes no ref/prop to
+      intercept its internal "start voice call" button, so instead this
+      component renders with `mode="chat"` (voice button removed
+      entirely) whenever the header holds the slot, and claims/releases
+      the slot itself from `onVoiceStart`/`onVoiceEnd`/`onError`.
+    - Honest gap: `onVoiceStart` likely fires once the chat widget's
+      call has already connected (not before), so there's a narrow
+      timing window where both could theoretically start if triggered
+      at the exact same instant. Acceptable for one person on one page;
+      not a hard cross-process guarantee. Verified via a full rebuild +
+      lint + a real headless-browser load (both triggers render
+      correctly, no console errors) — not yet tested against two real,
+      simultaneous Vapi connections, since that needs real credentials
+      and two live attempts timed together.
   - Verified: builds/lints/typechecks clean with and without the env vars
     set; manually tested in a real browser (Playwright, dummy key) —
     floating launcher renders correctly on desktop and mobile, panel opens

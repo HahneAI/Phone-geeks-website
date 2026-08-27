@@ -4,6 +4,11 @@ import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { track } from "@vercel/analytics";
 import { isVoiceAgentConfigured, vapiPublicKey, vapiAssistantId } from "@/lib/use-vapi-call";
+import {
+  claimCallSlot,
+  releaseCallSlot,
+  useActiveCallSource,
+} from "@/lib/call-coordinator";
 import "@vapi-ai/client-sdk-react/styles";
 
 /**
@@ -28,10 +33,22 @@ import "@vapi-ai/client-sdk-react/styles";
  *
  * Known overlap: while a call is active via the header widget, its
  * FloatingCallBar also sits bottom-right — this widget is deliberately
- * positioned bottom-left instead so the two never visually stack. Two
- * independent ways to start a real voice call on the same page is itself
- * worth a product decision (keep both? fold the header button into this
- * widget only?) — flagged in TODO.md rather than decided here.
+ * positioned bottom-left instead so the two never visually stack.
+ *
+ * Double-call prevention (src/lib/call-coordinator.ts): the packaged
+ * <VapiWidget> exposes no prop or ref to intercept its internal "start
+ * voice call" button, so this can't refuse a click the way
+ * use-vapi-call.ts's start() refuses to start a header call — instead,
+ * whenever the header holds the shared call slot, this renders with
+ * mode="chat" instead of "hybrid", which removes the voice button from
+ * the widget entirely so there's nothing to click. onVoiceStart/
+ * onVoiceEnd/onError claim and release the slot on this widget's side,
+ * which in turn makes the header's own start() correctly refuse while a
+ * chat-widget call is live. One small honest gap: onVoiceStart likely
+ * fires once the call has already connected (not before), so there's a
+ * brief window where both could theoretically start if triggered at the
+ * same instant — acceptable for one person on one page, not a hard
+ * cross-process guarantee.
  *
  * Dynamically imported with ssr: false — it drives WebRTC/mic access, which
  * only exists in the browser.
@@ -43,6 +60,7 @@ const VapiWidget = dynamic(
 
 export function VapiChatWidget() {
   const pathname = usePathname();
+  const activeCallSource = useActiveCallSource();
   // Owner-only tooling, not a customer touchpoint — the widget would just
   // cover up the dashboard's own bottom-left corner content otherwise.
   if (pathname?.startsWith("/management")) return null;
@@ -52,7 +70,10 @@ export function VapiChatWidget() {
     <VapiWidget
       publicKey={vapiPublicKey}
       assistantId={vapiAssistantId}
-      mode="hybrid"
+      // Drops to chat-only (no voice button at all) while the header
+      // widget already has a live call — see the double-call prevention
+      // note above.
+      mode={activeCallSource === "header" ? "chat" : "hybrid"}
       position="bottom-left"
       theme="light"
       accentColor="#e0332c"
@@ -65,11 +86,18 @@ export function VapiChatWidget() {
       endButtonText="End call"
       chatPlaceholder="Ask about pricing, stock, or your repair…"
       chatFirstMessage="Hey! I'm the Phone Geeks assistant — ask me anything, or switch to a voice call any time."
-      onVoiceStart={() => track("voice_call_connected", { source: "chat_widget" })}
-      onVoiceEnd={() => track("voice_call_ended", { source: "chat_widget" })}
-      onError={(error) =>
-        track("voice_call_failed", { source: "chat_widget", message: error.message })
-      }
+      onVoiceStart={() => {
+        claimCallSlot("chat-widget");
+        track("voice_call_connected", { source: "chat_widget" });
+      }}
+      onVoiceEnd={() => {
+        releaseCallSlot("chat-widget");
+        track("voice_call_ended", { source: "chat_widget" });
+      }}
+      onError={(error) => {
+        releaseCallSlot("chat-widget");
+        track("voice_call_failed", { source: "chat_widget", message: error.message });
+      }}
     />
   );
 }
