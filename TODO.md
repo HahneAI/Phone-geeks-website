@@ -445,10 +445,7 @@ built here is a legitimate starting point to grow into a real system.
     question ("do you have any iPhones?") to ask which model before
     calling the tool, since `check_stock` matches one specific item, not
     a whole category — a bare "any" was observed producing a vague
-    non-answer instead of a real lookup. **Needs re-pasting into Vapi's
-    assistant configuration** (the prompt, not just the tools) to take
-    effect — not verified live yet, since this repo has no write access
-    to the assistant itself.
+    non-answer instead of a real lookup.
   - **`check_stock`'s no-match response is now a structured object, not
     a bare string** — `{ found: false, query, message }` instead of just
     a sentence, matching what Vapi's own tool-testing composer flagged
@@ -459,6 +456,19 @@ built here is a legitimate starting point to grow into a real system.
     cases (real match, no match, empty query) — real matches still work
     exactly as before, no-match now returns a shape an assistant can
     branch on reliably instead of inferring from a sentence.
+  - **Actual root cause of the persistent "no result"/demo-language
+    failures, found 2026-08-27: none of the three tools had a Server
+    URL configured in Vapi's dashboard at all** — the Server Settings
+    panel's URL field was blank on every tool, so calls had nowhere to
+    go and failed before ever reaching this site's code (which is why
+    it failed even testing directly from Vapi's dashboard, not just
+    live calls, and why re-pasting tool JSON and fixing the prompt
+    hadn't resolved it — both were real fixes for real issues, just not
+    *this* one). Filling in the real deployed URL
+    (`https://phone-geeks-website.vercel.app/api/vapi/{stock,estimate,
+    book-appointment}`) per tool resolved it. **Confirmed working
+    end-to-end, 2026-08-27** — all three tools working both from Vapi's
+    own dashboard test console and live on the site's chat widget.
   - Still not synced from a real shop POS/inventory system (the
     RepairShopr/RepairDesk question below) — someone still updates
     counts by hand, just in Supabase's table editor instead of a TS
