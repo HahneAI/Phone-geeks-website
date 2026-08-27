@@ -190,7 +190,7 @@ export function CallWidget({ call, className, buttonClassName, iconOnly }: CallW
           buttonClassName
         )}
       >
-        <Phone className="h-4 w-4" />
+        <Phone className="h-4 w-4 text-brand-red" />
         {!iconOnly && PRIMARY_LOCATION.phone}
       </a>
     );
@@ -209,7 +209,7 @@ export function CallWidget({ call, className, buttonClassName, iconOnly }: CallW
           buttonClassName
         )}
       >
-        <Phone className="h-4 w-4" />
+        <Phone className="h-4 w-4 text-brand-red" />
         {!iconOnly && "Call Now"}
         {status === "active" && !open && (
           <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">

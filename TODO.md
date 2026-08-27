@@ -462,8 +462,15 @@ built here is a legitimate starting point to grow into a real system.
     real bug where the popover was clipped by the mobile nav's
     `overflow-hidden` collapse wrapper (fixed by portaling the panel to
     `document.body` with `position: fixed`, positioned from the button's
-    bounding rect). Not yet tested against a *real* Vapi public key/call —
-    that needs the actual credentials, which aren't set yet.
+    bounding rect).
+  - **Confirmed working against the real Vapi assistant in production
+    (2026-08-27, per the owner)** — real calls placed through this
+    widget now show up in `/management`'s Caller data section (§6):
+    `webCall` entries with real durations, ended reasons
+    (`customer-ended-call`, `silence-timed-out`), and per-call cost.
+    This is the first end-to-end confirmation that the header widget
+    → Vapi assistant → billed call path genuinely works, not just that
+    it builds.
   - "Prefer a person? Call ###" is always visible in every non-active
     panel state — the AI option never strands someone without a real
     human fallback.
@@ -505,6 +512,29 @@ built here is a legitimate starting point to grow into a real system.
     `text_message_started` — the widget's `onMessage` callback is typed
     `any` with no documented payload shape, and guessing at one risked
     silently-wrong analytics rather than an honest gap.
+  - **Still not tested against a real call (2026-08-27)** — unlike the
+    header widget above, nobody's actually opened this widget and
+    switched to voice yet, so its `/management` "Chat widget data" card
+    (§6) has zero real events to show. That card is also currently
+    erroring (`reason: "error"`, not the "no data yet" state) when
+    queried — leading hypothesis is that Vercel's Web Analytics
+    `events` dataset doesn't exist for a project until at least one
+    custom event has ever been recorded (same category of thing as
+    "not enabled until first pageview," but for the events sub-resource
+    specifically) — unconfirmed until this widget is actually tested
+    live and the card is rechecked afterward.
+  - **Hidden on `/management`** (`vapi-chat-widget.tsx` checks
+    `usePathname()`) — it's owner-only tooling, not a customer
+    touchpoint, and would otherwise sit in the same bottom-left corner
+    as some of the dashboard's own content.
+  - **Launcher icon is not customizable** — checked: the package
+    (`@vapi-ai/client-sdk-react` v0.1.1) hard-codes a waveform icon
+    into its bundled JS with no prop to swap it for anything else (its
+    `VapiWidgetProps` type has no icon-related field at all). There's
+    no stable CSS class to safely target it either — it's a plain
+    inline SVG with no distinguishing selector. Swapping it for a phone
+    icon would mean forking the package's rendering, not a config
+    change; not done.
 
 ---
 
@@ -549,24 +579,22 @@ plan below — option 1, a single shared password.
   new secret, **`VERCEL_API_TOKEN`** (create at Vercel → Account
   Settings → Tokens), plus the auto-provided `VERCEL_PROJECT_ID` and a
   hardcoded team ID (not a secret, overridable via `VERCEL_TEAM_ID`).
-  - **Open, not resolved:** the "is Vercel Analytics data actually
-    pullable for free?" question from below is still open. Confirmed
-    live against this actual project (via the Vercel MCP tools,
-    2026-08-26, re-checked 2026-08-27) that this API 404s with "Web
-    Analytics not found" — **but the Vercel dashboard's own Analytics
-    tab shows real visitor data for the same project at the same time**,
-    so this is not the simple "flip the Analytics toggle on" story it
-    first looked like (see §1). Root cause unconfirmed; leading
-    unconfirmed theory is that the query API needs a paid Vercel plan
-    separately from the free dashboard view — a generic Pro-upgrade
-    screen checked 2026-08-27 didn't list Web Analytics or Speed
-    Insights among its features either, so that's not confirmed yet.
-    The card reports this honestly (`reason: "not-enabled"`, copy in
-    `src/app/management/page.tsx`) rather than showing zeroes, naming
-    both the possible-paid-plan explanation and the possibility that it
-    just needs more real traffic before Vercel has enough to report —
-    next step is asking Vercel directly rather than guessing further or
-    buying a plan on spec.
+  - **Resolved, 2026-08-27 — confirmed working in production.** The
+    "is Vercel Analytics data actually pullable for free?" question is
+    answered: yes. `/management`'s Site traffic card is now showing
+    real numbers (visitors, pageviews, top pages) on the live
+    deployment — confirmed via the owner's own screenshots. No paid
+    plan needed; the "maybe needs Plus/Pro" theory from earlier
+    sessions was a red herring, not confirmed by anything beyond
+    repeated 404s that have since stopped happening. Exact root cause
+    of the earlier 404s stays unconfirmed (possibly propagation delay,
+    possibly something specific to how it was being queried at the
+    time) — not worth chasing further now that it demonstrably works.
+  - One real gap surfaced once traffic *was* flowing: the **Chat
+    widget data** card (below) still errors even though Site traffic
+    works — see the "Still not tested against a real call" note under
+    Tier 5 above for the current hypothesis (events dataset may not
+    exist until a custom event has ever fired).
   - Speed Insights (Core Web Vitals) is not pulled in the same way yet —
     still just a link-out. Its own dashboard panel (checked 2026-08-27)
     shows "No data available" with no enable toggle either, plus an
@@ -656,14 +684,9 @@ Leaning toward v1 to start, given the "free until proven" framing — it's
 enough to demo the concept honestly, and upgrading to v2 later doesn't
 touch anything else (no data model changes, just swaps the gate).
 
-### Open question: is Vercel Analytics data actually pullable for free?
-The dashboard's own Vercel tab is free on Hobby — but whether the *data
-itself* is accessible via API for embedding into a custom page (rather
-than just viewed in Vercel's UI) may require a paid plan. Needs
-verifying against Vercel's current pricing before promising this tile
-exists in v1 — if it's not available free, the management page can still
-deep-link out to Vercel's own dashboard for that section rather than
-faking it.
+### Resolved: is Vercel Analytics data actually pullable for free?
+Yes — confirmed 2026-08-27, no paid plan needed. See the note under
+"Site traffic" above.
 
 ### Rough shape — built as described, see above
 `/management` route, password-gated (v1, done) — a future Supabase-Auth

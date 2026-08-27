@@ -51,7 +51,7 @@ const ANALYTICS_ERROR_MESSAGES: Record<string, string> = {
   "not-configured":
     "VERCEL_API_TOKEN isn't set on this deployment yet — create one in Vercel (Account Settings → Tokens) and add it as an env var to pull traffic in here.",
   "not-enabled":
-    "Vercel's Web Analytics API isn't returning data for this project yet, even though the Vercel dashboard itself shows real visitors — this may require upgrading to a paid Vercel plan, though that isn't confirmed (worth checking with Vercel directly before upgrading on this alone). Data here may also just start flowing once the site has more real traffic for Vercel to base results on.",
+    "Vercel's Web Analytics API returned a 404 just now. This has worked fine before with VERCEL_API_TOKEN set, so if you're seeing this, double-check the token's still valid — it may also just need a minute and a refresh.",
   error: "Couldn't reach Vercel's Analytics API just now.",
 };
 
@@ -59,6 +59,8 @@ const CHAT_WIDGET_ERROR_MESSAGES: Record<string, string> = {
   ...ANALYTICS_ERROR_MESSAGES,
   "not-configured":
     "VERCEL_API_TOKEN isn't set yet — same token as the site traffic card above powers this too.",
+  error:
+    "Couldn't reach Vercel's Analytics API for these events — likely because no one's actually triggered a voice call from the chat widget yet (Vercel may not create the \"events\" dataset until at least one custom event has fired). Try the chat widget's voice mode once, then refresh this page.",
 };
 
 const CALLER_ERROR_MESSAGES: Record<string, string> = {

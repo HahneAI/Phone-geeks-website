@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { track } from "@vercel/analytics";
 import { isVoiceAgentConfigured, vapiPublicKey, vapiAssistantId } from "@/lib/use-vapi-call";
 import "@vapi-ai/client-sdk-react/styles";
@@ -41,6 +42,10 @@ const VapiWidget = dynamic(
 );
 
 export function VapiChatWidget() {
+  const pathname = usePathname();
+  // Owner-only tooling, not a customer touchpoint — the widget would just
+  // cover up the dashboard's own bottom-left corner content otherwise.
+  if (pathname?.startsWith("/management")) return null;
   if (!isVoiceAgentConfigured || !vapiPublicKey || !vapiAssistantId) return null;
 
   return (

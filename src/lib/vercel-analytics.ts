@@ -12,17 +12,14 @@
  * isn't a secret either — it's hardcoded below with an env override in
  * case this ever moves to a different team.
  *
- * IMPORTANT (updated 2026-08-26): this API 404s with "Web Analytics not
- * found" for this project even though the Vercel dashboard's own
- * Analytics tab shows real visitor data — so it is NOT a simple "flip a
- * toggle" situation like Speed Insights. Root cause unconfirmed; the
- * leading theory (also unconfirmed) is that the query API needs a paid
- * Vercel plan separately from the free dashboard view. Don't upgrade
- * plans on this alone — check with Vercel directly first. Until this is
- * resolved, getWebAnalyticsSummary() reports the 404 honestly (reason:
- * "not-enabled") instead of silently showing zeroes; see the
- * user-facing copy in src/app/management/page.tsx for the exact
- * wording shown on the dashboard.
+ * RESOLVED (2026-08-27): earlier sessions saw this API 404 with "Web
+ * Analytics not found" even while the Vercel dashboard showed real
+ * visitor data, and speculated it might need a paid plan. It doesn't —
+ * confirmed working for free once VERCEL_API_TOKEN was actually set;
+ * see TODO.md §6. getWebAnalyticsSummary() still reports a real 404
+ * honestly (reason: "not-enabled") rather than showing zeroes, in case
+ * it ever recurs — copy for that case lives in
+ * src/app/management/page.tsx.
  */
 
 const DEFAULT_TEAM_ID = "team_Q8xxQArDaIZW4h7Mvl2Mis93";
@@ -108,7 +105,7 @@ async function vercelFetch(
         ok: false,
         reason: "not-enabled",
         message:
-          "Vercel's Web Analytics API returned 404 for this project (dashboard shows data; API access may need a paid plan — unconfirmed).",
+          "Vercel's Web Analytics API returned 404 for this project. This worked fine as of 2026-08-27 with VERCEL_API_TOKEN set — if you're seeing this, double-check the token is still set and valid.",
       };
     }
     if (!res.ok) {
