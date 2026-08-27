@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import {
   ExternalLink,
   Eye,
-  LogOut,
   MessageCircle,
   PhoneCall,
   TicketCheck,
@@ -19,7 +18,6 @@ import {
   getWebAnalyticsSummary,
 } from "@/lib/vercel-analytics";
 import { getCallerSummary } from "@/lib/vapi-analytics";
-import { logout } from "@/app/management/actions";
 
 export const metadata: Metadata = {
   title: "Management | Phone Geeks",
@@ -90,26 +88,7 @@ export default async function ManagementPage() {
   const callerData = await getCallerSummary(bookedCallIds);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-brand-navy">Management</h1>
-          <p className="mt-1 text-sm text-black/60">
-            v1 — shared-password gate, straight reads. Not indexed, not
-            linked from anywhere public.
-          </p>
-        </div>
-        <form action={logout}>
-          <button
-            type="submit"
-            className="flex items-center gap-1.5 rounded-lg border border-black/15 px-3 py-1.5 text-sm font-medium text-black/70 transition hover:border-black/30 hover:text-black"
-          >
-            <LogOut className="h-4 w-4" />
-            Sign out
-          </button>
-        </form>
-      </div>
-
+    <div>
       {!durable ? (
         <p className="mt-6 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">
           Booking storage is running on the in-memory fallback right now
