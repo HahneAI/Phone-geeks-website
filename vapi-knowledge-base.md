@@ -24,12 +24,12 @@ starts.
 **Arnold**
 - Phone: 636-333-3324
 - Address: 141 Arnold Crossroads Center, Arnold, MO
-- Hours: Monday–Saturday 11am–7pm, Sunday Closed
+- Hours: Monday–Saturday 11am–7pm, closed Sunday
 
 **Ballwin**
 - Phone: 636-256-1702
 - Address: 14748 Manchester Rd, Ballwin, MO
-- Hours: Monday–Saturday 11am–7pm, Sunday Closed
+- Hours: Monday–Saturday 11am–7pm, closed Sunday
 
 **Affton**: Phone Geeks also has a location in Affton, but it is not yet
 set up for phone bookings or online appointments. If a caller asks about

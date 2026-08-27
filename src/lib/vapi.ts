@@ -38,6 +38,7 @@ export interface VapiRequestBody {
   message?: {
     type?: string;
     toolCallList?: RawToolCall[];
+    call?: { id?: string };
   };
 }
 
@@ -116,6 +117,17 @@ function checkAuth(req: Request): Response | null {
   return null;
 }
 
+/** Extra context alongside a normalized tool call — currently just the
+ * enclosing Vapi call's id (message.call.id in the raw payload), when
+ * present, so a tool like book-appointment can attribute a booking back
+ * to the call that created it. Unverified against docs.vapi.ai (blocked
+ * from this sandbox — confirmed via search results only, see
+ * booking-store.ts), so this is read defensively and is simply absent
+ * rather than crashing anything if the field isn't where expected. */
+export interface VapiToolContext {
+  callId?: string;
+}
+
 /**
  * Wraps a route handler so a thrown error still returns HTTP 200 with an
  * error result per tool call, instead of a 500 that Vapi would ignore.
@@ -124,15 +136,20 @@ function checkAuth(req: Request): Response | null {
  */
 export async function handleVapiTools(
   req: Request,
-  handleOne: (call: VapiToolCall) => unknown | Promise<unknown>
+  handleOne: (
+    call: VapiToolCall,
+    context: VapiToolContext
+  ) => unknown | Promise<unknown>
 ): Promise<Response> {
   const authError = checkAuth(req);
   if (authError) return authError;
 
   let calls: VapiToolCall[] = [];
+  let context: VapiToolContext = {};
   try {
     const body = (await req.json()) as VapiRequestBody;
     calls = getToolCalls(body);
+    context = { callId: body.message?.call?.id };
   } catch {
     return Response.json(vapiResults([]), { status: 200 });
   }
@@ -140,7 +157,7 @@ export async function handleVapiTools(
   const results = await Promise.all(
     calls.map(async (call) => {
       try {
-        return { toolCallId: call.id, result: await handleOne(call) };
+        return { toolCallId: call.id, result: await handleOne(call, context) };
       } catch (err) {
         return {
           toolCallId: call.id,

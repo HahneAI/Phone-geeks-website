@@ -366,36 +366,112 @@ built here is a legitimate starting point to grow into a real system.
     `"found": true` with the matching device/issue/location/timestamp.
     The full loop — Vapi tool call → Supabase insert → `/track` lookup —
     is real in production, not just locally.
-- **Real appointment booking against the shop's actual system** — the
-  above is a real *shared* record now, but it's still Phone Geeks' own
-  minimal store, not the shop's real intake. Two paths depending on what
-  they use:
-  - If they use RepairShopr/RepairDesk/similar: call that platform's API
-    directly to create a real ticket — the agent's booking *is* the
-    shop's real intake, no parallel system needed.
-  - If not: Google Calendar API (one calendar per location) is the
-    lowest-effort real option — checks actual open slots instead of just
-    collecting a stated preference.
+- **Real appointment booking against the shop's actual system — decided,
+  2026-08-27: staying on Supabase for now.** The owner doesn't know yet
+  whether the shop runs RepairShopr/RepairDesk, so there's no real
+  system to integrate against today. Supabase remains the real, shared
+  booking store; revisit the RepairShopr/RepairDesk-vs-Google-Calendar
+  fork once that's actually known. Not blocking further Tier 1 work.
 - **Real SMS confirmations** — Vapi supports sending SMS natively during
   or after a call (no separate Twilio integration needed, confirmed via
   Vapi's own docs). Use it for the booking confirmation and the "text me
   when it's ready" opt-in already mocked on `/track`.
-- **Real email** — swap Resend (or similar) in for the Estimate wizard's
-  and phone agent's "we'll email you" messaging, which is currently just
-  copy with nothing behind it.
-- **Lead capture / attribution** — log every call (caller info, what they
-  asked about, whether it became a booking) somewhere the owner can see,
-  even just a Google Sheet via Make.com to start. This directly matters for
-  the deal structure: proving the agent generated a lead or a sale is
-  what the commission is based on, so this isn't optional polish — it's
-  the receipt for the work.
+- **Real email — deliberately on hold, 2026-08-27** (owner's call): not
+  worth signing up for Resend or similar yet. The Estimate wizard's and
+  phone agent's "we'll email you" messaging stays as copy with nothing
+  behind it until this is revisited.
+- [x] **Lead capture / attribution — built, 2026-08-27.** Every phone
+  booking now carries the real Vapi call id it was made on
+  (`vapiCallId` on `PhoneBooking`, `vapi_call_id` column in Supabase),
+  captured from `message.call.id` on the tool-call webhook
+  (`src/lib/vapi.ts`'s new `VapiToolContext`, threaded through
+  `handleVapiTools` → `book-appointment/route.ts`). `/management`'s
+  Caller data section (§6) now cross-references Vapi's own recent calls
+  against real bookings (`listAttributedCallIds()` in
+  `booking-store.ts`) and shows, per period, how many calls actually
+  became a booking — a real conversion rate, not just two counts sitting
+  next to each other. This is the actual "receipt" the deal structure
+  needs: proof the agent generated a booking, not just that it took
+  calls.
+  - **Schema change needed on existing Supabase projects**: run
+    `alter table bookings add column if not exists vapi_call_id text;`
+    in the Supabase SQL editor (full statement in `booking-store.ts`'s
+    header comment). Not urgent — `saveBooking()` detects a missing
+    column and retries the insert without it, so bookings keep working
+    either way; you just don't get attribution on whatever comes in
+    before the migration runs.
+  - **Unverified against real docs** (`docs.vapi.ai` still blocked from
+    this sandbox): that `message.call.id` is really where the call id
+    lives on the tool-calls webhook payload. Confirmed via search
+    results only, not Vapi's actual reference docs — read defensively
+    (`context.callId` is simply `undefined` if the field isn't there,
+    never throws), so a wrong guess here degrades to "no attribution for
+    that booking," not a broken booking. Worth confirming for real once
+    a live booking's attribution can be checked against Vapi's own call
+    log for the same call.
 
 ### Tier 2 — Repair-shop-specific integrations
-- **RepairShopr/RepairDesk API** (if applicable, see assumption above) —
-  real inventory counts replacing `retail-data.ts`, real repair status
-  replacing `tracker-data.ts`, real ticket creation replacing the mock
-  booking. This one integration would make almost every demo page on the
-  site real instead of mock, in one move.
+- [x] **Retail/parts stock — out of demo, 2026-08-27.** `/retail` and
+  the `check_stock` Vapi tool both now read from `src/lib/retail-store.ts`
+  — real, owner-editable stock in Supabase (a new `retail_items` table;
+  full `create table`/seed SQL in that file's header comment), same
+  pattern as `booking-store.ts` and reusing the exact same
+  `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` — **no new secret needed**.
+  Falls back to the old static `retail-data.ts` catalog (with an honest
+  "static snapshot" note, same as before) if Supabase isn't configured or
+  the table hasn't been seeded yet, so nothing breaks pre-migration.
+  `/retail` uses a 60s ISR revalidate rather than `force-dynamic` — stock
+  counts don't need /management's page-per-request freshness. Updated
+  the `check_stock` tool description in `vapi-front-desk-agent-brief.md`
+  (no longer says "demo catalog") — **needs re-pasting into Vapi's
+  dashboard**, this repo can't push that itself. Also fixed
+  `book_mock_appointment`'s description there, which had gone stale
+  claiming it "does not persist anywhere durable" — it has, since §5
+  Tier 1 shipped.
+  - Still not synced from a real shop POS/inventory system (the
+    RepairShopr/RepairDesk question below) — someone still updates
+    counts by hand, just in Supabase's table editor instead of a TS
+    file requiring a code deploy. That's the real gap this closes:
+    "demo, hand-edited in the repo" → "real, owner-editable, no deploy."
+  - Repair-parts inventory (screen/battery counts feeding the Estimate
+    wizard's turnaround) is still just the §4.3 idea, not built — this
+    only covers the retail/resale side.
+- **`get_repair_estimate` tuned and tested against realistic caller
+  phrasing, 2026-08-27.** Wrote a real test harness simulating actual
+  Vapi tool-call payloads (all three documented shapes — flat, nested
+  object-args, nested string-args — plus multi-call batching) against
+  both `/api/vapi/estimate` and `/api/vapi/stock` locally, covering
+  realistic phrasing per device category and deliberate edge cases
+  (empty/missing fields, gibberish, vague phrasing, wrong-casing
+  categories). Found and fixed two real matching bugs in
+  `matchSymptom()`:
+  - **Stopword inflation**: the old `word.length > 2` filter let common
+    function words like "the" count as real matching signal — some
+    symptom labels contain "the" twice (e.g. Screen Repair's "the
+    screen is cracked or the glass is broken"), so *any* caller
+    sentence containing "the" picked up 1–2 free points toward Screen
+    Repair specifically. Caught because "I dropped it in the toilet"
+    was matching **Screen Repair** instead of Water Damage Diagnostic —
+    a real, wrong, and slightly absurd answer a live caller could have
+    gotten. Fixed with a real stopword list (`STOPWORDS` in
+    `estimate/route.ts`).
+  - **Single generic word overmatch**: "it's just broken" was
+    confidently matching Screen Repair, because "broken" is real
+    content-word length but only appears in one label
+    ("...or the glass is broken") and doesn't actually identify what's
+    wrong. Checked every symptom `label` in `diagnose-data.ts` (not
+    `reasoning`, which isn't used for matching) before excluding it —
+    `broken` is the only such case in the current dataset, so this is a
+    short, evidence-based `TOO_GENERIC` list, not a guess at every
+    vague word that might theoretically cause the same problem.
+  - Also added tie-detection: two symptoms scoring equally on real
+    content words now falls through to the honest "come in for a free
+    look" fallback instead of silently picking whichever happens to be
+    first in the array — ambiguous phrasing shouldn't resolve to a
+    confident, possibly-wrong quote.
+  - Full suite (30+ cases across all 4 categories, edge cases, payload
+    shape variants, batching) passes after the fix. `check_stock` was
+    tested the same way and needed no changes — no bugs surfaced there.
 - **IMEI / blacklist check** for buyback and trade-in — before offering
   cash for a device, verify it isn't reported lost/stolen or carrier-
   locked, via an IMEI lookup API. Protects the shop from a bad buy and
@@ -462,8 +538,15 @@ built here is a legitimate starting point to grow into a real system.
     real bug where the popover was clipped by the mobile nav's
     `overflow-hidden` collapse wrapper (fixed by portaling the panel to
     `document.body` with `position: fixed`, positioned from the button's
-    bounding rect). Not yet tested against a *real* Vapi public key/call —
-    that needs the actual credentials, which aren't set yet.
+    bounding rect).
+  - **Confirmed working against the real Vapi assistant in production
+    (2026-08-27, per the owner)** — real calls placed through this
+    widget now show up in `/management`'s Caller data section (§6):
+    `webCall` entries with real durations, ended reasons
+    (`customer-ended-call`, `silence-timed-out`), and per-call cost.
+    This is the first end-to-end confirmation that the header widget
+    → Vapi assistant → billed call path genuinely works, not just that
+    it builds.
   - "Prefer a person? Call ###" is always visible in every non-active
     panel state — the AI option never strands someone without a real
     human fallback.
@@ -487,12 +570,34 @@ built here is a legitimate starting point to grow into a real system.
     would need a server-side piece (this site's backend passing the chat
     transcript into the voice call's `assistantOverrides` via Vapi's
     *private* key) and isn't built.
-  - **Open product question, not decided here:** there are now two
-    independent ways to start a real voice call on the site (this widget,
-    and the header "Call Now" button) that don't share call state with
-    each other — someone could open both and start two simultaneously
-    billed calls. Worth deciding whether to keep both, or point this
-    widget's voice button at the header's shared call session instead.
+  - [x] **Double-call prevention — built, 2026-08-27**
+    (`src/lib/call-coordinator.ts`). There are still two independent
+    ways to start a real voice call on the site (this widget, and the
+    header "Call Now" button), but they can no longer both be live at
+    once: a plain module-level singleton tracks which one holds the
+    shared "call slot," and each side enforces it the way its SDK
+    actually allows —
+    - Header: `use-vapi-call.ts`'s `start()` calls `claimCallSlot()`
+      *before* touching `@vapi-ai/web` at all, and refuses (with a real
+      error message: "A call is already in progress in the chat
+      widget…") if the chat widget already holds it. The trigger button
+      itself is also disabled (`call-widget.tsx`) whenever the chat
+      widget has a live call, so there's nothing to click, not just an
+      error after the fact.
+    - Chat widget: the packaged `<VapiWidget>` exposes no ref/prop to
+      intercept its internal "start voice call" button, so instead this
+      component renders with `mode="chat"` (voice button removed
+      entirely) whenever the header holds the slot, and claims/releases
+      the slot itself from `onVoiceStart`/`onVoiceEnd`/`onError`.
+    - Honest gap: `onVoiceStart` likely fires once the chat widget's
+      call has already connected (not before), so there's a narrow
+      timing window where both could theoretically start if triggered
+      at the exact same instant. Acceptable for one person on one page;
+      not a hard cross-process guarantee. Verified via a full rebuild +
+      lint + a real headless-browser load (both triggers render
+      correctly, no console errors) — not yet tested against two real,
+      simultaneous Vapi connections, since that needs real credentials
+      and two live attempts timed together.
   - Verified: builds/lints/typechecks clean with and without the env vars
     set; manually tested in a real browser (Playwright, dummy key) —
     floating launcher renders correctly on desktop and mobile, panel opens
@@ -505,6 +610,29 @@ built here is a legitimate starting point to grow into a real system.
     `text_message_started` — the widget's `onMessage` callback is typed
     `any` with no documented payload shape, and guessing at one risked
     silently-wrong analytics rather than an honest gap.
+  - **Still not tested against a real call (2026-08-27)** — unlike the
+    header widget above, nobody's actually opened this widget and
+    switched to voice yet, so its `/management` "Chat widget data" card
+    (§6) has zero real events to show. That card is also currently
+    erroring (`reason: "error"`, not the "no data yet" state) when
+    queried — leading hypothesis is that Vercel's Web Analytics
+    `events` dataset doesn't exist for a project until at least one
+    custom event has ever been recorded (same category of thing as
+    "not enabled until first pageview," but for the events sub-resource
+    specifically) — unconfirmed until this widget is actually tested
+    live and the card is rechecked afterward.
+  - **Hidden on `/management`** (`vapi-chat-widget.tsx` checks
+    `usePathname()`) — it's owner-only tooling, not a customer
+    touchpoint, and would otherwise sit in the same bottom-left corner
+    as some of the dashboard's own content.
+  - **Launcher icon is not customizable** — checked: the package
+    (`@vapi-ai/client-sdk-react` v0.1.1) hard-codes a waveform icon
+    into its bundled JS with no prop to swap it for anything else (its
+    `VapiWidgetProps` type has no icon-related field at all). There's
+    no stable CSS class to safely target it either — it's a plain
+    inline SVG with no distinguishing selector. Swapping it for a phone
+    icon would mean forking the package's rendering, not a config
+    change; not done.
 
 ---
 
@@ -549,24 +677,22 @@ plan below — option 1, a single shared password.
   new secret, **`VERCEL_API_TOKEN`** (create at Vercel → Account
   Settings → Tokens), plus the auto-provided `VERCEL_PROJECT_ID` and a
   hardcoded team ID (not a secret, overridable via `VERCEL_TEAM_ID`).
-  - **Open, not resolved:** the "is Vercel Analytics data actually
-    pullable for free?" question from below is still open. Confirmed
-    live against this actual project (via the Vercel MCP tools,
-    2026-08-26, re-checked 2026-08-27) that this API 404s with "Web
-    Analytics not found" — **but the Vercel dashboard's own Analytics
-    tab shows real visitor data for the same project at the same time**,
-    so this is not the simple "flip the Analytics toggle on" story it
-    first looked like (see §1). Root cause unconfirmed; leading
-    unconfirmed theory is that the query API needs a paid Vercel plan
-    separately from the free dashboard view — a generic Pro-upgrade
-    screen checked 2026-08-27 didn't list Web Analytics or Speed
-    Insights among its features either, so that's not confirmed yet.
-    The card reports this honestly (`reason: "not-enabled"`, copy in
-    `src/app/management/page.tsx`) rather than showing zeroes, naming
-    both the possible-paid-plan explanation and the possibility that it
-    just needs more real traffic before Vercel has enough to report —
-    next step is asking Vercel directly rather than guessing further or
-    buying a plan on spec.
+  - **Resolved, 2026-08-27 — confirmed working in production.** The
+    "is Vercel Analytics data actually pullable for free?" question is
+    answered: yes. `/management`'s Site traffic card is now showing
+    real numbers (visitors, pageviews, top pages) on the live
+    deployment — confirmed via the owner's own screenshots. No paid
+    plan needed; the "maybe needs Plus/Pro" theory from earlier
+    sessions was a red herring, not confirmed by anything beyond
+    repeated 404s that have since stopped happening. Exact root cause
+    of the earlier 404s stays unconfirmed (possibly propagation delay,
+    possibly something specific to how it was being queried at the
+    time) — not worth chasing further now that it demonstrably works.
+  - One real gap surfaced once traffic *was* flowing: the **Chat
+    widget data** card (below) still errors even though Site traffic
+    works — see the "Still not tested against a real call" note under
+    Tier 5 above for the current hypothesis (events dataset may not
+    exist until a custom event has ever fired).
   - Speed Insights (Core Web Vitals) is not pulled in the same way yet —
     still just a link-out. Its own dashboard panel (checked 2026-08-27)
     shows "No data available" with no enable toggle either, plus an
@@ -656,14 +782,9 @@ Leaning toward v1 to start, given the "free until proven" framing — it's
 enough to demo the concept honestly, and upgrading to v2 later doesn't
 touch anything else (no data model changes, just swaps the gate).
 
-### Open question: is Vercel Analytics data actually pullable for free?
-The dashboard's own Vercel tab is free on Hobby — but whether the *data
-itself* is accessible via API for embedding into a custom page (rather
-than just viewed in Vercel's UI) may require a paid plan. Needs
-verifying against Vercel's current pricing before promising this tile
-exists in v1 — if it's not available free, the management page can still
-deep-link out to Vercel's own dashboard for that section rather than
-faking it.
+### Resolved: is Vercel Analytics data actually pullable for free?
+Yes — confirmed 2026-08-27, no paid plan needed. See the note under
+"Site traffic" above.
 
 ### Rough shape — built as described, see above
 `/management` route, password-gated (v1, done) — a future Supabase-Auth
@@ -672,3 +793,119 @@ v2 remains an option if needed later. Stat cards pull real Supabase data
 sections are linked out rather than embedded for now. Footer link is
 deliberately plain/unstyled — this isn't a customer-facing feature, it
 shouldn't look like one.
+
+---
+
+## 7. Deeper Metrics — Cross-Source Business Insights (brainstorm, not built)
+
+§6 wired up four real data sources: Vercel Web Analytics (site traffic,
+once the open access question above is resolved), Vercel custom events
+(chat widget voice actions), Vapi's Calls API (caller data), and
+Supabase (real bookings). Each shows up on `/management` today as its
+own isolated stat card — raw counts, not insight. A visitor count and a
+booking count sitting next to each other on the same page is not the
+same thing as knowing what actually drives a booking. This section is
+the brainstorm for **combining** these sources into numbers an owner
+would actually change a decision based on, not just numbers to glance
+at. Nothing here is built — it's the dig list for once the underlying
+sources (especially Web Analytics, still blocked per §6 above) are
+confirmed flowing.
+
+### 7.1 Funnel & conversion metrics (the big one)
+- **Full-funnel drop-off**: site visit → `/estimate` or `/diagnose`
+  started → contact info captured → real booking created. Right now
+  each step lives in a different system (Vercel pageviews,
+  client-only quiz state, Supabase) with nothing tying one visitor's
+  path across them — the single highest-value thing to build here,
+  and the hardest, since it needs a shared visitor/session identifier
+  threaded through all three.
+- **Call → booking conversion rate**, not just call count next to
+  booking count: what fraction of calls in a window actually resulted
+  in a booking, by correlating Vapi call timestamps against
+  `bookings.created_at`. Turns "47 calls this week" into "47 calls, 12
+  bookings, 25% close rate" — the number that actually matters for the
+  commission conversation (see §5 Tier 1's attribution note).
+- **Web-widget calls vs. phone-number calls, conversion compared** —
+  Vapi's caller data already splits these by `type` (§6); worth
+  checking whether one entry point converts meaningfully better than
+  the other, since that's a real product decision (§5 Tier 5's "two
+  widgets, one assistant" open question) with an actual number behind
+  it instead of a guess.
+- **Diagnostic-quiz path vs. direct estimate-wizard path** — does
+  finishing `/diagnose` first (§2.2) correlate with a higher booking
+  rate than landing straight on `/estimate`? Would validate (or kill)
+  the quiz's whole "free value hook" premise from §2.4 with a real
+  number instead of a hunch. Needs `/diagnose` instrumented with
+  `track()` events first — it currently emits nothing server-visible.
+
+### 7.2 Cost & efficiency metrics
+- **Cost per booking**: Vapi's `totalCost` (already summed in
+  `vapi-analytics.ts`) divided by bookings in the same window — a real,
+  trackable customer-acquisition cost that gets cheaper or more
+  expensive as call volume and close rate shift. Directly answers "is
+  the phone agent worth what it costs" in one number.
+- **Ended-reason breakdown** (`endedReason` on every call, already
+  fetched but not bucketed yet) — how many calls end in a normal
+  resolution vs. silence-timeout vs. an assistant error vs. the caller
+  just hanging up mid-sentence. A spike in one bucket is a concrete
+  signal of where the agent is underperforming, not just "call volume
+  is up or down."
+- **Average call duration by outcome** — do calls that convert to a
+  booking run longer or shorter than ones that don't? Useful for
+  tuning how much the assistant should try to accomplish per call.
+
+### 7.3 Attribution & source quality
+- **Referrer/UTM → booking**, not just referrer → visit. Knowing
+  "40% of visits are from Google" is much less useful than "visits from
+  the Google Business Profile listing convert to bookings at 3x the
+  rate of Facebook traffic" — needs UTM/referrer captured at first
+  touch and carried through to whichever booking eventually happens
+  (same shared-identifier problem as 7.1).
+- **Repeat-contact detection**: cross-reference phone numbers appearing
+  in both Vapi's caller data and Supabase's `bookings.callback_number`
+  — surfaces people who called more than once before booking (a
+  hesitant-lead signal worth a follow-up) vs. one-call-and-done.
+- **Location split vs. digital demand**: bookings by location (Arnold
+  vs. Ballwin, `locations.ts`) cross-referenced against which pages/
+  traffic sources actually drive interest in each — informs whether
+  the two shops need different marketing, not just a shared site.
+
+### 7.4 Behavioral & timing patterns
+- **Time-of-day / day-of-week heatmap**, calls and site visits both —
+  answers a genuinely operational question (should the phone agent's
+  hours, or a human's, extend past the shop's current hours in
+  `locations.ts`?) with real usage data instead of a guess.
+- **Time-to-book**: elapsed time between a lead's first touch (call or
+  site visit) and an actual booking — a funnel-velocity number, and a
+  leading indicator if it starts drifting longer over time.
+
+### 7.5 Content signal mining
+- **Transcript keyword/theme extraction** — Vapi retains full call
+  transcripts (per §5 Tier 4's call-analytics-digest idea); even a
+  lightweight pass (common phrases, most-asked-about repair types,
+  recurring objections) turns raw call logs into "here's what
+  customers actually keep asking that isn't obvious from the FAQ page"
+  — real product/content feedback, not a metric so much as a business
+  insight generator. Natural fit for an LLM summarization pass rather
+  than manual reading, given real volume.
+- **Abandoned-estimate detection**: the Estimate wizard already
+  validates and holds name/email/phone (§2.4) before the final step —
+  if a visitor fills that in but never reaches "booked," that's a real,
+  named lead that fell out of the funnel, distinct from an anonymous
+  visitor who just bounced. Currently nothing captures this
+  intermediate state at all.
+
+### What this needs first (prerequisites, not yet true)
+- Web Analytics API access actually resolved (§6 above) — most of 7.1
+  and 7.3 are dead in the water until visit-level data is reachable at
+  all, not just call/booking data.
+- A shared visitor/session identifier threaded across page views, the
+  diagnostic quiz, the estimate wizard, and the eventual booking — none
+  of today's four sources currently share one, which is what turns
+  "four separate counts" into "one funnel." Worth deciding whether that
+  identifier is a Vercel Analytics session concept, a first-party
+  cookie this site sets itself, or something else, before building any
+  of the funnel metrics above.
+- `/diagnose`'s decision-tree flow instrumented with `track()` events —
+  currently emits nothing measurable server-side (§2.2), which blocks
+  the diagnostic-path-vs-direct-path comparison in 7.1.

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Phone, PhoneOff, Mic, MicOff, Loader2, X, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isVoiceAgentConfigured, vapiDebugInfo, type VapiCall } from "@/lib/use-vapi-call";
+import { useActiveCallSource } from "@/lib/call-coordinator";
 import { LOCATIONS } from "@/lib/locations";
 
 const PRIMARY_LOCATION = LOCATIONS[0];
@@ -99,6 +100,11 @@ export function CallWidget({ call, className, buttonClassName, iconOnly }: CallW
   const panelRef = useRef<HTMLDivElement>(null);
   const { status, muted, assistantSpeaking, errorMessage, debugDetail, elapsed, start, stop, toggleMute, reset } =
     call;
+  // The chat widget's voice mode is a live call elsewhere on the page —
+  // see src/lib/call-coordinator.ts. start() already refuses in this
+  // case, but disabling the trigger up front is clearer than letting
+  // someone open the popup only to hit an error on click.
+  const blockedByChatWidget = useActiveCallSource() === "chat-widget";
 
   // Once the call actually connects, hand off from this popup to the
   // FloatingCallBar automatically — the popup no longer requires an
@@ -190,7 +196,7 @@ export function CallWidget({ call, className, buttonClassName, iconOnly }: CallW
           buttonClassName
         )}
       >
-        <Phone className="h-4 w-4" />
+        <Phone className="h-4 w-4 text-brand-red" />
         {!iconOnly && PRIMARY_LOCATION.phone}
       </a>
     );
@@ -201,16 +207,29 @@ export function CallWidget({ call, className, buttonClassName, iconOnly }: CallW
       <button
         ref={buttonRef}
         type="button"
+        disabled={blockedByChatWidget}
         onClick={() => setOpen((v) => !v)}
-        aria-label={iconOnly ? "Call Now" : undefined}
+        aria-label={
+          iconOnly
+            ? blockedByChatWidget
+              ? "Call Now (unavailable — a call is already active in chat)"
+              : "Call Now"
+            : undefined
+        }
+        title={
+          blockedByChatWidget
+            ? "A call is already in progress in the chat widget"
+            : undefined
+        }
         className={cn(
           "relative inline-flex h-9 items-center gap-2 rounded-full border border-white/30 text-sm font-semibold text-white transition-colors hover:bg-white/10",
           iconOnly ? "w-9 justify-center px-0" : "px-4",
+          blockedByChatWidget && "cursor-not-allowed opacity-50 hover:bg-transparent",
           buttonClassName
         )}
       >
-        <Phone className="h-4 w-4" />
-        {!iconOnly && "Call Now"}
+        <Phone className="h-4 w-4 text-brand-red" />
+        {!iconOnly && (blockedByChatWidget ? "Call Active" : "Call Now")}
         {status === "active" && !open && (
           <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />

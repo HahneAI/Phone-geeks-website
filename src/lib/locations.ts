@@ -1,7 +1,3 @@
-/**
- * Hours below are a reasonable placeholder for the demo (brief didn't include
- * real operating hours) — swap for the shop's actual schedule before launch.
- */
 export interface DaySchedule {
   open: number;
   close: number;
@@ -18,14 +14,15 @@ export interface StoreLocation {
   schedule: WeeklySchedule;
 }
 
+/** Real hours for both Arnold and Ballwin: closed Sundays, 11am–7pm Mon–Sat. */
 const STANDARD_SCHEDULE: WeeklySchedule = {
-  0: { open: 12, close: 17 }, // Sun
-  1: { open: 10, close: 19 }, // Mon
-  2: { open: 10, close: 19 },
-  3: { open: 10, close: 19 },
-  4: { open: 10, close: 19 },
-  5: { open: 10, close: 19 },
-  6: { open: 10, close: 19 }, // Sat
+  0: null, // Sun — closed
+  1: { open: 11, close: 19 }, // Mon
+  2: { open: 11, close: 19 },
+  3: { open: 11, close: 19 },
+  4: { open: 11, close: 19 },
+  5: { open: 11, close: 19 },
+  6: { open: 11, close: 19 }, // Sat
 };
 
 export const LOCATIONS: StoreLocation[] = [
@@ -49,9 +46,10 @@ export function formatSchedule(schedule: WeeklySchedule): string {
   const fmt = (h: number) =>
     h === 12 ? "12pm" : h > 12 ? `${h - 12}pm` : `${h}am`;
   const weekday = schedule[1];
+  if (!weekday) return "Call for hours";
   const sunday = schedule[0];
-  if (!weekday || !sunday) return "Call for hours";
-  return `Mon–Sat ${fmt(weekday.open)}–${fmt(weekday.close)}, Sun ${fmt(
-    sunday.open
-  )}–${fmt(sunday.close)}`;
+  const sundayLabel = sunday
+    ? `, Sun ${fmt(sunday.open)}–${fmt(sunday.close)}`
+    : ", closed Sun";
+  return `Mon–Sat ${fmt(weekday.open)}–${fmt(weekday.close)}${sundayLabel}`;
 }

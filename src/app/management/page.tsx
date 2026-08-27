@@ -11,6 +11,7 @@ import {
 import {
   getBookingsCount,
   isBookingStoreDurable,
+  listAttributedCallIds,
   listRecentBookings,
 } from "@/lib/booking-store";
 import {
@@ -51,7 +52,7 @@ const ANALYTICS_ERROR_MESSAGES: Record<string, string> = {
   "not-configured":
     "VERCEL_API_TOKEN isn't set on this deployment yet — create one in Vercel (Account Settings → Tokens) and add it as an env var to pull traffic in here.",
   "not-enabled":
-    "Vercel's Web Analytics API isn't returning data for this project yet, even though the Vercel dashboard itself shows real visitors — this may require upgrading to a paid Vercel plan, though that isn't confirmed (worth checking with Vercel directly before upgrading on this alone). Data here may also just start flowing once the site has more real traffic for Vercel to base results on.",
+    "Vercel's Web Analytics API returned a 404 just now. This has worked fine before with VERCEL_API_TOKEN set, so if you're seeing this, double-check the token's still valid — it may also just need a minute and a refresh.",
   error: "Couldn't reach Vercel's Analytics API just now.",
 };
 
@@ -59,6 +60,8 @@ const CHAT_WIDGET_ERROR_MESSAGES: Record<string, string> = {
   ...ANALYTICS_ERROR_MESSAGES,
   "not-configured":
     "VERCEL_API_TOKEN isn't set yet — same token as the site traffic card above powers this too.",
+  error:
+    "Couldn't reach Vercel's Analytics API for these events — likely because no one's actually triggered a voice call from the chat widget yet (Vercel may not create the \"events\" dataset until at least one custom event has fired). Try the chat widget's voice mode once, then refresh this page.",
 };
 
 const CALLER_ERROR_MESSAGES: Record<string, string> = {
@@ -76,14 +79,15 @@ function formatDuration(seconds: number | null): string {
 
 export default async function ManagementPage() {
   const durable = isBookingStoreDurable();
-  const [bookingsCount, recentBookings, analytics, chatWidget, callerData] =
+  const [bookingsCount, recentBookings, analytics, chatWidget, bookedCallIds] =
     await Promise.all([
       durable ? getBookingsCount() : Promise.resolve(0),
       durable ? listRecentBookings(10) : Promise.resolve([]),
       getWebAnalyticsSummary(),
       getChatWidgetSummary(),
-      getCallerSummary(),
+      durable ? listAttributedCallIds() : Promise.resolve(new Set<string>()),
     ]);
+  const callerData = await getCallerSummary(bookedCallIds);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
@@ -146,8 +150,17 @@ export default async function ManagementPage() {
               </p>
               <p className="mt-1 text-xs text-black/50">
                 {callerData.data.last7d.webCalls} from the site widgets,{" "}
-                {callerData.data.last7d.phoneCalls} to the real number. Full
-                breakdown in Caller data below.
+                {callerData.data.last7d.phoneCalls} to the real number.
+              </p>
+              <p className="mt-2 text-xs font-semibold text-brand-navy">
+                {callerData.data.last7d.bookedCalls} became a real booking
+                {callerData.data.last7d.totalCalls > 0
+                  ? ` (${Math.round(
+                      (callerData.data.last7d.bookedCalls /
+                        callerData.data.last7d.totalCalls) *
+                        100
+                    )}%)`
+                  : ""}
               </p>
             </>
           ) : (
@@ -155,9 +168,12 @@ export default async function ManagementPage() {
               {CALLER_ERROR_MESSAGES[callerData.reason] ?? callerData.message}
             </p>
           )}
-          <p className="mt-2 text-xs text-black/40">
-            Lead attribution (call → booking) still needs TODO.md §5 Tier 1.
-          </p>
+          {!durable ? (
+            <p className="mt-2 text-xs text-black/40">
+              Attribution needs Supabase configured (see the notice above) —
+              a call can only match a booking that was actually saved.
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -269,6 +285,9 @@ export default async function ManagementPage() {
                     &middot; avg {formatDuration(period.avgDurationSeconds)}
                     &middot; ${period.totalCost.toFixed(2)}
                   </p>
+                  <p className="mt-2 text-xs font-semibold text-brand-navy">
+                    {period.bookedCalls} became a booking
+                  </p>
                 </div>
               ))}
             </div>
@@ -298,6 +317,7 @@ export default async function ManagementPage() {
                       <th className="px-4 py-3 font-medium">Ended reason</th>
                       <th className="px-4 py-3 font-medium">Caller</th>
                       <th className="px-4 py-3 font-medium">Cost</th>
+                      <th className="px-4 py-3 font-medium">Booked</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -328,6 +348,15 @@ export default async function ManagementPage() {
                         </td>
                         <td className="px-4 py-3 text-xs text-black/50">
                           {call.cost !== null ? `$${call.cost.toFixed(2)}` : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          {call.booked ? (
+                            <span className="font-semibold text-green-700">
+                              ✓ booked
+                            </span>
+                          ) : (
+                            <span className="text-black/30">—</span>
+                          )}
                         </td>
                       </tr>
                     ))}

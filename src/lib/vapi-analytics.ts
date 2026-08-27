@@ -28,6 +28,12 @@
  * shop that hasn't launched the number yet; worth switching to
  * server-side date filtering once real call volume can confirm the
  * right param names.
+ *
+ * getCallerSummary() takes an optional set of "booked" call ids (see
+ * booking-store.ts's listAttributedCallIds()) so each call/period can
+ * report whether it turned into a real booking — actual lead
+ * attribution, not just two side-by-side counts. Pass nothing to get
+ * caller data without attribution (bookedCalls always 0).
  */
 
 const CALLS_API = "https://api.vapi.ai/call";
@@ -39,6 +45,8 @@ export interface CallerPeriod {
   phoneCalls: number;
   totalCost: number;
   avgDurationSeconds: number;
+  /** Calls whose id matches a real booking's vapi_call_id — see booking-store.ts. */
+  bookedCalls: number;
 }
 
 export interface RecentCall {
@@ -49,6 +57,7 @@ export interface RecentCall {
   endedReason: string | null;
   cost: number | null;
   customerNumber: string | null;
+  booked: boolean;
 }
 
 export interface CallerSummary {
@@ -92,7 +101,10 @@ function isPhoneCall(call: RawCall): boolean {
   return (call.type ?? "").toLowerCase().includes("phonecall");
 }
 
-function summarizePeriod(calls: RawCall[]): CallerPeriod {
+function summarizePeriod(
+  calls: RawCall[],
+  bookedCallIds: Set<string>
+): CallerPeriod {
   const totalCalls = calls.length;
   const webCalls = calls.filter((c) => !isPhoneCall(c)).length;
   const phoneCalls = totalCalls - webCalls;
@@ -104,8 +116,18 @@ function summarizePeriod(calls: RawCall[]): CallerPeriod {
     durations.length > 0
       ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
       : 0;
+  const bookedCalls = calls.filter(
+    (c) => c.id && bookedCallIds.has(c.id)
+  ).length;
 
-  return { totalCalls, webCalls, phoneCalls, totalCost, avgDurationSeconds };
+  return {
+    totalCalls,
+    webCalls,
+    phoneCalls,
+    totalCost,
+    avgDurationSeconds,
+    bookedCalls,
+  };
 }
 
 function extractCalls(json: unknown): RawCall[] {
@@ -116,7 +138,9 @@ function extractCalls(json: unknown): RawCall[] {
   return [];
 }
 
-export async function getCallerSummary(): Promise<CallerResult> {
+export async function getCallerSummary(
+  bookedCallIds: Set<string> = new Set()
+): Promise<CallerResult> {
   const token = process.env.VAPI_PRIVATE_KEY;
   if (!token) {
     return {
@@ -178,13 +202,14 @@ export async function getCallerSummary(): Promise<CallerResult> {
     endedReason: call.endedReason ?? null,
     cost: call.cost ?? null,
     customerNumber: call.customer?.number ?? null,
+    booked: Boolean(call.id && bookedCallIds.has(call.id)),
   }));
 
   return {
     ok: true,
     data: {
-      last7d: summarizePeriod(last7d),
-      last30d: summarizePeriod(last30d),
+      last7d: summarizePeriod(last7d, bookedCallIds),
+      last30d: summarizePeriod(last30d, bookedCallIds),
       recentCalls,
       truncated: calls.length >= FETCH_LIMIT,
     },

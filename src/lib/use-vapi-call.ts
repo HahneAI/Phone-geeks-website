@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type Vapi from "@vapi-ai/web";
+import { claimCallSlot, releaseCallSlot } from "@/lib/call-coordinator";
 
 /**
  * Client-side wrapper around @vapi-ai/web for the header "Call Now" widget.
@@ -104,6 +105,7 @@ export function useVapiCall() {
   useEffect(() => {
     return () => {
       vapiRef.current?.stop();
+      releaseCallSlot("header");
     };
   }, []);
 
@@ -111,6 +113,18 @@ export function useVapiCall() {
     if (!isVoiceAgentConfigured) {
       setStatus("error");
       setErrorMessage("Our voice assistant isn't set up yet.");
+      return;
+    }
+
+    // Refuses to start if the chat widget's voice mode already holds the
+    // shared call slot — see call-coordinator.ts. Claimed *before* the
+    // real Vapi connection is even attempted, so this can't race a call
+    // that's already live.
+    if (!claimCallSlot("header")) {
+      setStatus("error");
+      setErrorMessage(
+        "A call is already in progress in the chat widget — finish that one first, then try again."
+      );
       return;
     }
 
@@ -128,6 +142,7 @@ export function useVapiCall() {
       vapi.on("call-end", () => {
         setStatus("ended");
         setAssistantSpeaking(false);
+        releaseCallSlot("header");
       });
       vapi.on("speech-start", () => setAssistantSpeaking(true));
       vapi.on("speech-end", () => setAssistantSpeaking(false));
@@ -136,6 +151,7 @@ export function useVapiCall() {
         setStatus("error");
         setErrorMessage("The call dropped unexpectedly.");
         setDebugDetail(describeError(err));
+        releaseCallSlot("header");
       });
 
       await vapi.start(ASSISTANT_ID!);
@@ -146,6 +162,7 @@ export function useVapiCall() {
         "Couldn't start the call — check that your browser has mic access and try again."
       );
       setDebugDetail(describeError(err));
+      releaseCallSlot("header");
     }
   }, []);
 
@@ -154,6 +171,7 @@ export function useVapiCall() {
     vapiRef.current = null;
     setStatus("ended");
     setAssistantSpeaking(false);
+    releaseCallSlot("header");
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -166,6 +184,7 @@ export function useVapiCall() {
 
   const reset = useCallback(() => {
     vapiRef.current = null;
+    releaseCallSlot("header");
     setStatus("idle");
     setMuted(false);
     setErrorMessage(null);

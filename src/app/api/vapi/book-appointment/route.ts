@@ -1,4 +1,8 @@
-import { handleVapiTools, type VapiToolCall } from "@/lib/vapi";
+import {
+  handleVapiTools,
+  type VapiToolCall,
+  type VapiToolContext,
+} from "@/lib/vapi";
 import { LOCATIONS } from "@/lib/locations";
 import { saveBooking, isBookingStoreDurable } from "@/lib/booking-store";
 
@@ -7,7 +11,7 @@ function generateReference() {
   return `PG-${Math.floor(10000 + Math.random() * 90000)}`;
 }
 
-async function bookAppointment(call: VapiToolCall) {
+async function bookAppointment(call: VapiToolCall, context: VapiToolContext) {
   const { device, issue, location, caller_name, callback_number, preferred_time } =
     call.arguments;
 
@@ -46,6 +50,7 @@ async function bookAppointment(call: VapiToolCall) {
     callbackNumber: String(callback_number),
     preferredTime: preferred_time ? String(preferred_time) : undefined,
     createdAt: new Date().toISOString(),
+    vapiCallId: context.callId,
   });
 
   console.log("[vapi] appointment booked", {
