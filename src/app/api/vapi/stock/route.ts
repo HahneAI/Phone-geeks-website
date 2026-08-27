@@ -45,9 +45,19 @@ async function checkStock(call: VapiToolCall) {
   const item = findItem(items, query);
 
   if (!item) {
-    return query
-      ? `I couldn't find a catalog match for "${query}". We carry refurbished iPhones, Galaxy phones, an iPad, and accessories like chargers, screen protectors, and cases — could you say the item again?`
-      : "I didn't catch which item you're asking about — could you say the product name again?";
+    // A structured object even on no-match, not a bare string — a
+    // fixed shape with `found: false` is easier for the assistant to
+    // branch on reliably than inferring "no data" from a sentence.
+    // (Vapi's own tool-testing composer flagged this exact pattern
+    // after real-call testing surfaced a vague, data-less reply for a
+    // query like "any" that didn't match anything — see TODO.md §5.)
+    return {
+      found: false,
+      query: query || null,
+      message: query
+        ? `I couldn't find a catalog match for "${query}". We carry refurbished iPhones, Galaxy phones, an iPad, and accessories like chargers, screen protectors, and cases — could you say the item again?`
+        : "I didn't catch which item you're asking about — could you say the product name again?",
+    };
   }
 
   const breakdown = resolveLocations(location).map((slug) => {
@@ -57,6 +67,7 @@ async function checkStock(call: VapiToolCall) {
   });
 
   return {
+    found: true,
     item: item.name,
     price: item.price,
     condition: item.condition ?? null,

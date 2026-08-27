@@ -66,7 +66,11 @@ function StockRow({
   locations: StoreLocation[];
   editable: boolean;
 }) {
-  const [draft, setDraft] = useState<Record<string, number>>(item.stock);
+  // "" is a real, distinct draft value (mid-edit, field cleared) — not
+  // silently 0. Coercing it to 0 here would fight the input: clearing
+  // the field to retype a new count would immediately snap back to "0"
+  // instead of letting the field sit empty.
+  const [draft, setDraft] = useState<Record<string, number | "">>(item.stock);
   const [state, setState] = useState<RowState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -76,18 +80,32 @@ function StockRow({
   );
 
   function handleChange(slug: string, value: string) {
-    const n = value === "" ? 0 : Math.max(0, Math.floor(Number(value)));
+    if (value === "") {
+      setDraft((d) => ({ ...d, [slug]: "" }));
+      setState("idle");
+      return;
+    }
+    const n = Math.max(0, Math.floor(Number(value)));
     if (Number.isNaN(n)) return;
     setDraft((d) => ({ ...d, [slug]: n }));
     setState("idle");
   }
 
   function handleSave() {
+    // A field left blank saves as 0 — the input itself snaps back to
+    // "0" afterward too, since that's genuinely what got saved.
+    const normalized: Record<string, number> = {};
+    for (const loc of locations) {
+      const value = draft[loc.slug];
+      normalized[loc.slug] = value === "" || value === undefined ? 0 : value;
+    }
+
     startTransition(async () => {
       setState("saving");
       setError(null);
-      const result = await saveItemStock(item.id, draft);
+      const result = await saveItemStock(item.id, normalized);
       if (result.ok) {
+        setDraft(normalized);
         setState("saved");
         setTimeout(() => setState((s) => (s === "saved" ? "idle" : s)), 1500);
       } else {

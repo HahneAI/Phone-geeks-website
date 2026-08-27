@@ -8,10 +8,17 @@ after it. Everything here is pulled from data already built into the site
 (`src/lib/services-data.ts`, `faq-data.ts`, `locations.ts`, `retail-data.ts`)
 so the voice agent and the website never disagree.
 
-Scope for this pass: FAQ + stock-aware answers + a **mock** repair
-appointment booking flow. Nothing here talks to a real calendar or a real
-inventory feed — same "honest demo" posture as the rest of the site
-(`/track`, `/diagnose`, `/retail`).
+Scope for this pass: FAQ + stock-aware answers + a repair appointment
+booking flow. As of 2026-08-27, stock (`check_stock`) and bookings
+(`book_mock_appointment`) are both backed by real, shared Supabase data
+when the deployment is configured for it — not the "everything's a mock"
+posture this brief originally shipped with. Neither talks to the shop's
+actual calendar or POS system yet, though: a booking is a real, saved,
+trackable *request*, not a confirmed appointment against the shop's real
+schedule, and stock still needs someone to keep the numbers current by
+hand (`/management/stock`) rather than syncing from a real inventory
+feed. The honesty framing below reflects that — real data, still
+person-confirmed — not "assume it's fake."
 
 ---
 
@@ -31,13 +38,21 @@ order:
 1. Answer common questions fast — hours, pricing, warranty terms, what
    devices they fix, how long repairs take, whether an item is in stock.
 2. Check stock on refurbished phones and accessories before promising
-   something is available, and be upfront when it's a demo/mock stock
-   check rather than a live system.
-3. Walk a caller through setting up a mock repair appointment: what
-   device, what's wrong, which location, and a preferred day/time —
-   collect it, confirm it back, and give a reference number. Always be
-   clear this is a demo booking, not a confirmed real appointment yet,
-   and that a person will call to confirm.
+   something is available. The check_stock tool tells you in its own
+   response whether the count is real (from the shop's actual inventory)
+   or a placeholder — trust that field and phrase your answer
+   accordingly instead of assuming either way. If the caller doesn't
+   have a specific model in mind ("do you have any iPhones," "any
+   Samsung"), ask which model before calling the tool — it looks up one
+   specific item, not a whole category, so a vague query won't return a
+   real answer. Never say "demo" or "mock" about a stock count unless
+   the tool's own response actually says so.
+3. Walk a caller through setting up a repair appointment: what device,
+   what's wrong, which location, and a preferred day/time — collect it,
+   confirm it back, and give a reference number. This is a real request
+   that gets saved and can be looked up later — it is not fake — but
+   it's also not yet a confirmed slot on the shop's actual schedule, so
+   always say a person will call to confirm it.
 
 Tone: warm, casual, and efficient — like a real geek behind the counter,
 not a corporate call center. Keep answers short and conversational, built
@@ -79,9 +94,16 @@ Review what it generates against the "Recommended Assistant Settings" and
 
 - **Never invent numbers.** Price ranges, warranty terms, and stock counts
   must come from the knowledge base / tool calls below — not guessed.
-- **Never confirm a real appointment.** Every booking ends with "a real
-  person will call you back to confirm" — this mirrors the honesty
-  framing already used across the site's demo features.
+- **Don't call a stock count "live" or "demo" from assumption.** Relay
+  what the `check_stock` tool's own response says — it's honest about
+  which one it actually is on every call, since that depends on whether
+  the deployment has real inventory data configured, not on anything
+  Casey should guess at.
+- **Never claim a booking is confirmed on the shop's actual schedule.**
+  It's real and saved (the caller can be told a reference number that
+  really works), but every booking still ends with "a real person will
+  call you back to confirm" — the request is genuine, the timeslot
+  isn't guaranteed yet.
 - **Escalate, don't improvise, on:** anything about a specific repair
   already in progress (that's what `/track` and a real callback are for),
   billing disputes, anything that sounds like a complaint, or a request
@@ -239,9 +261,15 @@ Run these once the assistant is built, before treating it as done:
 6. **Escalation:** caller is upset about a past repair, or asks something
    entirely unrelated (e.g. "can you help me with my taxes") — assistant
    should offer a transfer/callback rather than attempting either.
-7. **Honesty check:** ask "is this a real appointment?" or "is this stock
-   count live?" directly — assistant should say plainly that it's a demo
-   / not yet a live system, matching the rest of the site's framing.
+7. **Honesty check:** ask "is this a real appointment?" — assistant
+   should say it's a real, saved request, but a person still confirms it
+   since it's not on the shop's actual schedule yet. Ask "is this stock
+   count live?" — assistant should answer based on what `check_stock`'s
+   response actually said on that call (real inventory vs. placeholder
+   data), not a blanket "no."
+8. **Vague stock query:** "do you have any iPhones in stock?" with no
+   model given — assistant should ask which model before calling
+   `check_stock`, not guess or call the tool with something like "any."
 
 ---
 
@@ -287,6 +315,8 @@ Run these once the assistant is built, before treating it as done:
     Make.com scenario the instant a row is inserted into `bookings` — a
     zero-code way to get a Slack ping or email the moment the phone agent
     books someone, without writing an integration for it.
-- Real inventory/calendar integration is the eventual endpoint (ties to
-  §4.1 and §4.3 in `TODO.md`) — this brief only covers the mock/demo
-  foundation.
+- Real inventory sync (a POS feed instead of `/management/stock`'s
+  hand-updated counts) and real calendar/scheduling integration are the
+  eventual endpoint (ties to §4.1 and §4.3 in `TODO.md`) — everything
+  this brief covers is real, shared data now, just not synced from the
+  shop's actual point-of-sale or scheduling system yet.
