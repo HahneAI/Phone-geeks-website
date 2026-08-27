@@ -672,3 +672,119 @@ v2 remains an option if needed later. Stat cards pull real Supabase data
 sections are linked out rather than embedded for now. Footer link is
 deliberately plain/unstyled — this isn't a customer-facing feature, it
 shouldn't look like one.
+
+---
+
+## 7. Deeper Metrics — Cross-Source Business Insights (brainstorm, not built)
+
+§6 wired up four real data sources: Vercel Web Analytics (site traffic,
+once the open access question above is resolved), Vercel custom events
+(chat widget voice actions), Vapi's Calls API (caller data), and
+Supabase (real bookings). Each shows up on `/management` today as its
+own isolated stat card — raw counts, not insight. A visitor count and a
+booking count sitting next to each other on the same page is not the
+same thing as knowing what actually drives a booking. This section is
+the brainstorm for **combining** these sources into numbers an owner
+would actually change a decision based on, not just numbers to glance
+at. Nothing here is built — it's the dig list for once the underlying
+sources (especially Web Analytics, still blocked per §6 above) are
+confirmed flowing.
+
+### 7.1 Funnel & conversion metrics (the big one)
+- **Full-funnel drop-off**: site visit → `/estimate` or `/diagnose`
+  started → contact info captured → real booking created. Right now
+  each step lives in a different system (Vercel pageviews,
+  client-only quiz state, Supabase) with nothing tying one visitor's
+  path across them — the single highest-value thing to build here,
+  and the hardest, since it needs a shared visitor/session identifier
+  threaded through all three.
+- **Call → booking conversion rate**, not just call count next to
+  booking count: what fraction of calls in a window actually resulted
+  in a booking, by correlating Vapi call timestamps against
+  `bookings.created_at`. Turns "47 calls this week" into "47 calls, 12
+  bookings, 25% close rate" — the number that actually matters for the
+  commission conversation (see §5 Tier 1's attribution note).
+- **Web-widget calls vs. phone-number calls, conversion compared** —
+  Vapi's caller data already splits these by `type` (§6); worth
+  checking whether one entry point converts meaningfully better than
+  the other, since that's a real product decision (§5 Tier 5's "two
+  widgets, one assistant" open question) with an actual number behind
+  it instead of a guess.
+- **Diagnostic-quiz path vs. direct estimate-wizard path** — does
+  finishing `/diagnose` first (§2.2) correlate with a higher booking
+  rate than landing straight on `/estimate`? Would validate (or kill)
+  the quiz's whole "free value hook" premise from §2.4 with a real
+  number instead of a hunch. Needs `/diagnose` instrumented with
+  `track()` events first — it currently emits nothing server-visible.
+
+### 7.2 Cost & efficiency metrics
+- **Cost per booking**: Vapi's `totalCost` (already summed in
+  `vapi-analytics.ts`) divided by bookings in the same window — a real,
+  trackable customer-acquisition cost that gets cheaper or more
+  expensive as call volume and close rate shift. Directly answers "is
+  the phone agent worth what it costs" in one number.
+- **Ended-reason breakdown** (`endedReason` on every call, already
+  fetched but not bucketed yet) — how many calls end in a normal
+  resolution vs. silence-timeout vs. an assistant error vs. the caller
+  just hanging up mid-sentence. A spike in one bucket is a concrete
+  signal of where the agent is underperforming, not just "call volume
+  is up or down."
+- **Average call duration by outcome** — do calls that convert to a
+  booking run longer or shorter than ones that don't? Useful for
+  tuning how much the assistant should try to accomplish per call.
+
+### 7.3 Attribution & source quality
+- **Referrer/UTM → booking**, not just referrer → visit. Knowing
+  "40% of visits are from Google" is much less useful than "visits from
+  the Google Business Profile listing convert to bookings at 3x the
+  rate of Facebook traffic" — needs UTM/referrer captured at first
+  touch and carried through to whichever booking eventually happens
+  (same shared-identifier problem as 7.1).
+- **Repeat-contact detection**: cross-reference phone numbers appearing
+  in both Vapi's caller data and Supabase's `bookings.callback_number`
+  — surfaces people who called more than once before booking (a
+  hesitant-lead signal worth a follow-up) vs. one-call-and-done.
+- **Location split vs. digital demand**: bookings by location (Arnold
+  vs. Ballwin, `locations.ts`) cross-referenced against which pages/
+  traffic sources actually drive interest in each — informs whether
+  the two shops need different marketing, not just a shared site.
+
+### 7.4 Behavioral & timing patterns
+- **Time-of-day / day-of-week heatmap**, calls and site visits both —
+  answers a genuinely operational question (should the phone agent's
+  hours, or a human's, extend past the shop's current hours in
+  `locations.ts`?) with real usage data instead of a guess.
+- **Time-to-book**: elapsed time between a lead's first touch (call or
+  site visit) and an actual booking — a funnel-velocity number, and a
+  leading indicator if it starts drifting longer over time.
+
+### 7.5 Content signal mining
+- **Transcript keyword/theme extraction** — Vapi retains full call
+  transcripts (per §5 Tier 4's call-analytics-digest idea); even a
+  lightweight pass (common phrases, most-asked-about repair types,
+  recurring objections) turns raw call logs into "here's what
+  customers actually keep asking that isn't obvious from the FAQ page"
+  — real product/content feedback, not a metric so much as a business
+  insight generator. Natural fit for an LLM summarization pass rather
+  than manual reading, given real volume.
+- **Abandoned-estimate detection**: the Estimate wizard already
+  validates and holds name/email/phone (§2.4) before the final step —
+  if a visitor fills that in but never reaches "booked," that's a real,
+  named lead that fell out of the funnel, distinct from an anonymous
+  visitor who just bounced. Currently nothing captures this
+  intermediate state at all.
+
+### What this needs first (prerequisites, not yet true)
+- Web Analytics API access actually resolved (§6 above) — most of 7.1
+  and 7.3 are dead in the water until visit-level data is reachable at
+  all, not just call/booking data.
+- A shared visitor/session identifier threaded across page views, the
+  diagnostic quiz, the estimate wizard, and the eventual booking — none
+  of today's four sources currently share one, which is what turns
+  "four separate counts" into "one funnel." Worth deciding whether that
+  identifier is a Vercel Analytics session concept, a first-party
+  cookie this site sets itself, or something else, before building any
+  of the funnel metrics above.
+- `/diagnose`'s decision-tree flow instrumented with `track()` events —
+  currently emits nothing measurable server-side (§2.2), which blocks
+  the diagnostic-path-vs-direct-path comparison in 7.1.
