@@ -449,6 +449,16 @@ built here is a legitimate starting point to grow into a real system.
     assistant configuration** (the prompt, not just the tools) to take
     effect — not verified live yet, since this repo has no write access
     to the assistant itself.
+  - **`check_stock`'s no-match response is now a structured object, not
+    a bare string** — `{ found: false, query, message }` instead of just
+    a sentence, matching what Vapi's own tool-testing composer flagged
+    after real-call testing of the "any" case above surfaced a
+    data-less, vague reply instead of the intended "could you say the
+    item again?" ask. The found-a-match response now also carries
+    `found: true` for symmetry. Verified locally against all three
+    cases (real match, no match, empty query) — real matches still work
+    exactly as before, no-match now returns a shape an assistant can
+    branch on reliably instead of inferring from a sentence.
   - Still not synced from a real shop POS/inventory system (the
     RepairShopr/RepairDesk question below) — someone still updates
     counts by hand, just in Supabase's table editor instead of a TS
