@@ -794,6 +794,37 @@ sections are linked out rather than embedded for now. Footer link is
 deliberately plain/unstyled — this isn't a customer-facing feature, it
 shouldn't look like one.
 
+### Tabbed layout — built 2026-08-27
+`/management` is now three tabs sharing one header/sign-out, not one long
+scrolling page: **Overview** (everything from above), **Stock** (the
+stock-count editor below), and **Anthony&rsquo;s Checklist** (placeholder,
+content TBD). Implemented as a Next.js route group,
+`src/app/management/(dashboard)/` — `layout.tsx` holds the shared
+header/tabs/sign-out and wraps `page.tsx` (Overview), `stock/page.tsx`,
+and `checklist/page.tsx`; `login/page.tsx` sits outside the group so it
+stays chrome-free. `src/components/management/management-tabs.tsx` uses
+framer-motion's `layoutId` shared-element animation for the sliding
+active-tab underline (a spring tuned for minimal overshoot, not a bouncy
+feel) rather than hand-measuring tab positions; `page-transition.tsx`
+gives each tab a brief fade+slide-up on entry. Both reuse framer-motion,
+already a dependency for the FAQ accordion and scroll-reveal.
+
+### Stock editor — built 2026-08-27
+`/management/stock` — real, per-item, per-location number inputs backed
+by `src/lib/retail-store.ts`'s new `updateItemStock()`, called through a
+server action (`stock/actions.ts`) that revalidates both
+`/management/stock` and the public `/retail` page on save so a change
+shows up in both immediately, not just after the next natural
+revalidation. Save is per-row (not one big "save everything" button) —
+correcting one count shouldn't put every other row's unsaved draft state
+at risk. Deliberately scoped to stock counts only: adding a new item,
+retiring one, or changing its name/price/condition is still a Supabase
+table-editor task (plain text/number columns there, genuinely fine for a
+non-technical person — the only awkward column, `stock` jsonb, is what
+this editor exists to avoid hand-editing). Disabled entirely with an
+honest note when Supabase isn't configured, matching the rest of
+`/management`'s fallback pattern.
+
 ---
 
 ## 7. Deeper Metrics — Cross-Source Business Insights (brainstorm, not built)

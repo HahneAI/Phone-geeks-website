@@ -126,3 +126,42 @@ export async function getRetailItems(): Promise<RetailItemsResult> {
 
   return { items: (data as RetailItemRow[]).map(fromRow), durable: true };
 }
+
+export type UpdateStockResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Writes a real stock update — powers the editor at /management/stock.
+ * Only ever touches the `stock` column of one row; name/category/
+ * condition/price stay a Supabase-table-editor task (see TODO.md §5
+ * Tier 2), since those change far less often than counts do.
+ */
+export async function updateItemStock(
+  itemId: string,
+  stock: Record<string, number>
+): Promise<UpdateStockResult> {
+  if (!supabase) {
+    return {
+      ok: false,
+      error: "Supabase isn't configured on this deployment yet.",
+    };
+  }
+
+  for (const [slug, count] of Object.entries(stock)) {
+    if (!Number.isInteger(count) || count < 0) {
+      return {
+        ok: false,
+        error: `"${slug}" count must be a whole number, 0 or more.`,
+      };
+    }
+  }
+
+  const { error } = await supabase
+    .from("retail_items")
+    .update({ stock })
+    .eq("id", itemId);
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
