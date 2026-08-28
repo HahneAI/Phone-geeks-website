@@ -1054,6 +1054,18 @@ building any of this from scratch — this brainstorm stays useful either
 way (as its own system, or as the design for a custom front end over
 RepairDesk's real data), but which one changes the actual work a lot.
 
+**Owner's fuller warehouse plan, 2026-08-28** (custom per-item IDs on
+receipt, a cheap printed barcode/QR attached to the physical package, and
+automatic routing to a lettered/numbered storage bin like "B13" for all
+C-type chargers) is researched in depth in
+`warehouse-id-bin-system-repairdesk-fit.md` — short version: RepairDesk
+already has a native free-text "Physical Location" field (shown on
+receipts/transfer orders, sortable alphanumerically) that's a close match
+for the bin-code idea, but it's just a label with no rules engine behind
+it, and its own label printing is Code-128 barcode only, not QR — so the
+item-type → bin-code mapping logic and the QR generation both stay this
+site's own responsibility either way, per that doc's §4.
+
 ### 8.1 Scannable stage transitions — the easy version needs no scanner at all
 The cheapest real version of "scannable" doesn't need a camera-scanning
 library, a native app, or even a "Scan" button in `/management`: a QR

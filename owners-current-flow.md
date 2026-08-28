@@ -157,6 +157,14 @@ secondhand and flagged as such.
   first" pass before building independently, since a workflow/status engine
   and vendor-linked parts ordering may already exist there.
 
+## Related: the owner's warehouse ID/bin-routing plan
+
+See `warehouse-id-bin-system-repairdesk-fit.md` for a deeper dig into how
+RepairDesk's actual inventory features (native "Physical Location" field,
+barcode label printing, serialized vs. non-serialized inventory) fit
+against the owner's own plan for custom per-item IDs, cheap printed
+QR/barcode tags, and automatic bin routing (`TODO.md` §8).
+
 ## Two open paths (not decided here)
 
 1. **Integrate**: build against RepairDesk's Public API — pull real ticket
