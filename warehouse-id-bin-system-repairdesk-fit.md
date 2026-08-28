@@ -9,15 +9,74 @@ to the package, and the system then routes staff to a specific storage bin
 chargers → **B13**) — without anyone having to remember or look it up by
 hand.
 
-**Gap flagged up front**: this doc references "the rough deciding formula
-for each item type" as already decided, but it isn't written down anywhere
-in this repo (checked `TODO.md`, `owners-current-flow.md`,
-`vapi-*.md` — no hits). It only exists in a prior conversation this repo
-doesn't have access to. Whoever picks this up next should get that formula
-committed somewhere real (this file, or its own) rather than letting it
-live only in chat history — everything below is written so it's still
-useful without the exact formula, but the actual build can't start without
-it.
+**Update, 2026-08-28**: the owner supplied a photo of the running-draft
+formula from a paper notebook. Captured here verbatim (current best draft,
+still subject to change) so it lives in the repo instead of only in a
+photo:
+
+### The unit-ID formula (current draft)
+
+An earlier draft (`MMDD-cat#-store#`) is crossed out in the notebook in
+favor of:
+
+```
+cat# - brand# - condition - MMDDYY
+```
+
+- **`cat#`** — category number (a lookup code per item category/type,
+  e.g. "chargers," "screens," "batteries" — the actual category→number
+  table isn't written down yet, just the slot for it).
+- **`brand#`** — brand number (a lookup code per brand, e.g. Apple,
+  Samsung — same status: the slot exists, the actual brand→number table
+  doesn't yet).
+- **`condition`** — new vs. refurbished, encoded as a single digit (the
+  worked example uses `1` for new; refurb's digit isn't confirmed yet —
+  presumably `2`, not yet written down).
+- **`MMDDYY`** — the date the item **reached the store** (not order date,
+  not manufacture date — explicitly "reached store" per the note).
+
+**Worked example from the notebook**: a USB-C charger by Apple, new,
+received today → **`11-2-1-082826`** — read as category 11, brand 2,
+condition 1 (new), reached store 08/28/26.
+
+**Still open / not yet decided** (flagging so the next pass on this
+doesn't have to re-derive it):
+- The full category→number and brand→number lookup tables (only the
+  *slot* for a number is decided, not the actual mapping — this is
+  exactly the kind of lookup table §4 below already proposed keeping on
+  this site's own side).
+- The condition digit for anything other than "new" (refurb confirmed as
+  a state that needs a digit; whether there are more states — e.g. "used,
+  working" vs. "used, for parts" — isn't settled).
+- Whether this 4-part string *is* the printed/scanned ID as-is, or gets
+  compressed/re-encoded before going on a label — nothing in the note
+  addresses this yet.
+- This formula produces one ID per **item type/batch as received on a
+  given day**, not automatically one per physical unit — e.g. two USB-C
+  Apple chargers arriving new on the same day would compute to the *same*
+  string under this formula. Worth deciding explicitly whether that's
+  intended (SKU/batch-level identity — matches RepairDesk's default,
+  non-serialized inventory mode) or whether a per-unit suffix still needs
+  adding (matches RepairDesk's serialized mode) — this is the same
+  unit-level-vs-type-level question already flagged in §5 below, now with
+  a concrete formula to test it against.
+
+### Storage-location types (new detail from the same notebook page)
+
+Locations aren't just a flat bin code — they have **types**: off the top
+of the owner's head, **shelf**, **bin**, and **binder**. A shelf can
+directly hold loose items, or hold a bin or a binder as a sub-container
+sitting on that shelf slot. This is a real hierarchy (shelf → optionally
+contains a bin or binder → contains items), not a flat list of codes —
+worth designing the lookup table in §4 with that nesting in mind (a
+location's *type* determines whether it's a leaf you put items straight
+into, or a slot that itself contains another typed location), rather than
+assuming every bin code names the final container.
+
+**Everything below this point was written before the formula/location-type
+update above** — re-read with the new formula and the shelf/bin/binder
+hierarchy in mind, since some framing (e.g. "the exact formula" as an
+unknown) is now partly superseded.
 
 ---
 
@@ -137,17 +196,36 @@ independent" RepairDesk question in `owners-current-flow.md` eventually
 resolves, since the core routing logic doesn't depend on RepairDesk at
 all:
 
-1. **Keep the item-type → bin-code mapping and the custom-ID formula on
-   this site's own side** (once the formula itself is actually committed
-   somewhere, per the gap flagged at the top). A simple lookup table —
-   item type/category → wall letter + storage-type number — is all "C-type
-   chargers → B13" needs; nothing here requires RepairDesk's cooperation.
-2. **On receiving a new item**: this site's code computes the custom ID
-   and looks up the target bin from that table, generates a QR (via
-   `qrcode`, matching the approach already chosen in `TODO.md` §8.1)
-   encoding a link back to that item's record (e.g.
-   `/management/inventory/<id>`), and shows/prints a one-page label with
-   the QR, the custom ID, and the bin code all human-readable on it.
+1. **Keep the category→number, brand→number, and item-type→bin-code
+   lookup tables on this site's own side.** The formula in the update
+   above already assumes exactly this (a `cat#` and `brand#` have to come
+   from *some* table), so this isn't a new decision — it's the same
+   lookup-table approach, just now with three tables instead of one
+   (category codes, brand codes, category→bin routing) plus the
+   shelf/bin/binder hierarchy from the same note. Nothing here requires
+   RepairDesk's cooperation.
+2. **Model storage locations as the real hierarchy described, not a flat
+   code list**: a location has a `type` (`shelf` | `bin` | `binder`), an
+   optional `parentLocationId` (a bin or binder can sit inside a shelf
+   slot), and a human-facing code (the "B13"-style string). Routing logic
+   resolves "C-type chargers" to a *leaf* location — which might be a bin
+   sitting on a shelf, or a shelf slot holding loose items directly — not
+   just a bare letter+number string with no structure behind it.
+3. **On receiving a new item**: this site's code computes the unit ID from
+   the `cat#-brand#-condition-MMDDYY` formula (looking up `cat#` and
+   `brand#` from their tables, condition from a fixed new/refurb — and
+   whatever else gets added — enum, and `MMDDYY` from the actual date it
+   reached the store), looks up the target leaf location from the
+   category→bin table, generates a QR (via `qrcode`, matching the approach
+   already chosen in `TODO.md` §8.1) encoding a link back to that item's
+   record (e.g. `/management/inventory/<id>`), and shows/prints a
+   one-page label with the QR, the unit ID, and the resolved location
+   (e.g. "Shelf A2 → Bin B13") all human-readable on it. **Open design
+   call, not yet resolved**: since the formula as drafted computes the
+   same string for two identical units received the same day (see the
+   note above), decide whether the *printed/scanned* ID appends a
+   per-unit disambiguator (e.g. a running suffix) even if the underlying
+   formula stays batch-level, before this step gets built.
 3. **Print on a cheap direct-thermal label printer**, physically attach to
    the package — same real-world "someone has to do this by hand" step
    §8.1 already calls out for ticket labels.
@@ -165,14 +243,26 @@ all:
 
 ## 5. Open questions worth resolving before building
 
-- **Get "the rough deciding formula for each item type" committed to the
-  repo** (this file or a new one) — right now it only exists outside this
-  codebase's memory.
-- **Unit-level vs. type-level identity**: does every physical charger get
-  its own unique ID (serialized), or just every *kind* of charger
-  (SKU-level, with a plain count)? This decides which RepairDesk inventory
-  mode (if integrating) and which data shape (if independent) is correct.
-- **How many distinct bin codes/wall letters actually exist** — worth
-  nailing down the real, finite list (walls × storage-type numbers) now,
-  since that's the lookup table §4 needs and it's a business fact, not a
-  technical one.
+- **The category→number and brand→number lookup tables** — the formula
+  now has a defined shape, but the actual tables mapping real categories
+  ("chargers," "screens," ...) and real brands to their numbers don't
+  exist yet anywhere. This is the top remaining blocker to actually
+  computing an ID.
+- **The condition digit set** — `1` = new is confirmed; refurb's digit and
+  whether more states exist (used-working, used-for-parts, etc.) isn't.
+- **Unit-level vs. type-level identity** (now concrete, not hypothetical):
+  the formula as drafted produces identical strings for two same-day,
+  same-category-and-brand, same-condition units — decide whether that's
+  intentional (batch/SKU-level identity) or needs a per-unit
+  disambiguator appended before printing. This also decides which
+  RepairDesk inventory mode (serialized vs. not) fits, if integrating.
+- **The shelf/bin/binder hierarchy's real, finite structure** — how many
+  walls, how many shelf slots per wall, which slots hold a bin vs. a
+  binder vs. loose items directly. This is a business fact to walk the
+  actual storage room and record, not a technical one, and it's the data
+  the location lookup table in §4 needs.
+- **How location *codes* actually get assigned to shelf vs. bin vs.
+  binder** — is "B13" always a bin code specifically, with shelves and
+  binders getting their own separate coding pattern, or is it one shared
+  code space across all three types? Not yet decided in the notebook
+  draft.
