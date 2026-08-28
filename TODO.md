@@ -318,7 +318,11 @@ lookups, carrier APIs) apply directly; if not, drop them. Don't assume —
 ask.
 
 **Resolved, 2026-08-27: the shop runs RepairDesk** as their POS/CRM for
-ticket tracking — confirmed by the owner, not assumed. That answers the
+ticket tracking — confirmed by the owner, not assumed. See
+`owners-current-flow.md` at the repo root for the fuller spec: what's
+known (and explicitly flagged as unconfirmed) about RepairDesk's API,
+pricing tiers, and workflow/status support, plus the two open integration
+paths. That answers the
 "real inventory/ticketing already exists" question this section used to
 flag as open. It comes with a real, non-technical wrinkle worth being
 deliberate about rather than steamrolling with a technical answer:
@@ -1033,7 +1037,8 @@ starts and stays at step 0 since there's no staff-facing way to advance
 it" — just via a scanner instead of a manual toggle. Investigation below,
 nothing built yet.
 
-**Directly affected by the RepairDesk finding in §5**: the shop already
+**Directly affected by the RepairDesk finding in §5** (see
+`owners-current-flow.md` for the full spec): the shop already
 runs RepairDesk as their real ticketing system. A real repair-shop POS
 like RepairDesk almost certainly already tracks tickets through stages
 and very possibly already supports label/barcode printing — some of what
