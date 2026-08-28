@@ -317,15 +317,39 @@ service"). If Phone Geeks does sell that, several items below (activation
 lookups, carrier APIs) apply directly; if not, drop them. Don't assume —
 ask.
 
-**Also worth asking early:** does the shop already run repair-specific
-software — RepairShopr or RepairDesk are the two dominant platforms in
-this space, both with a real REST API and Zapier support (confirmed via
-research, not assumed). If they're on one of these already, that changes
-everything below — real inventory, real ticketing, and real customer
-records already exist and the right move is integrating with them
-directly rather than building parallel mock systems further. If they're
-running on paper/spreadsheets/nothing, the mock-data foundation already
-built here is a legitimate starting point to grow into a real system.
+**Resolved, 2026-08-27: the shop runs RepairDesk** as their POS/CRM for
+ticket tracking — confirmed by the owner, not assumed. See
+`owners-current-flow.md` at the repo root for the fuller spec: what's
+known (and explicitly flagged as unconfirmed) about RepairDesk's API,
+pricing tiers, and workflow/status support, plus the two open integration
+paths. That answers the
+"real inventory/ticketing already exists" question this section used to
+flag as open. It comes with a real, non-technical wrinkle worth being
+deliberate about rather than steamrolling with a technical answer:
+- **The owners like RepairDesk specifically for its vendor
+  integrations** — whatever supplier/parts-ordering connections it has
+  set up are a real, working thing they'd lose if this site's tooling
+  quietly became a second, parallel system of record.
+- **The general manager — the one person here with real software
+  judgment — doesn't like RepairDesk at all.**
+- That's a real tension, not a technical one: integrating with
+  RepairDesk's API (real inventory counts, real tickets, real customer
+  records flowing into this site and the phone agent) keeps the owners'
+  vendor integrations intact while potentially giving the GM a much
+  better *interface* on top of the same underlying data — RepairDesk
+  stays the system of record, this site becomes the good front end.
+  The alternative — leaning further into the independent Supabase-based
+  tickets/stock this repo already has (§5 Tier 1, §8) — is more fully
+  ours to shape and might be what the GM actually wants, but risks
+  becoming a second, disconnected source of truth the owners didn't ask
+  for and the shop has to keep in sync by hand.
+- **Not decided here** — this is a real business-relationship call, not
+  a code one. Worth a direct conversation with the GM (and maybe the
+  owners) about which problem matters more: keeping RepairDesk's vendor
+  integrations as the single source of truth, or having full control
+  over the tooling even if it means walking away from those
+  integrations. Everything below stays written assuming either path is
+  still open.
 
 ### Tier 0 — Reliability hardening (do before this takes real call volume)
 - [x] Payload-shape normalization (`src/lib/vapi.ts`) — a real call already
@@ -366,12 +390,14 @@ built here is a legitimate starting point to grow into a real system.
     `"found": true` with the matching device/issue/location/timestamp.
     The full loop — Vapi tool call → Supabase insert → `/track` lookup —
     is real in production, not just locally.
-- **Real appointment booking against the shop's actual system — decided,
-  2026-08-27: staying on Supabase for now.** The owner doesn't know yet
-  whether the shop runs RepairShopr/RepairDesk, so there's no real
-  system to integrate against today. Supabase remains the real, shared
-  booking store; revisit the RepairShopr/RepairDesk-vs-Google-Calendar
-  fork once that's actually known. Not blocking further Tier 1 work.
+- **Real appointment booking against the shop's actual system — still on
+  Supabase for now, but the fork this was waiting on is resolved.** The
+  shop runs **RepairDesk** (confirmed 2026-08-27 — see the note near the
+  top of this section on the real owners-vs-GM tension around it).
+  RepairDesk integration is the technically live option now, not a
+  hypothetical; whether to actually build it is the open call described
+  up top, not a data question anymore. Supabase remains the real, shared
+  booking store until that's decided. Not blocking further Tier 1 work.
 - **Real SMS confirmations** — Vapi supports sending SMS natively during
   or after a call (no separate Twilio integration needed, confirmed via
   Vapi's own docs). Use it for the booking confirmation and the "text me
@@ -469,14 +495,28 @@ built here is a legitimate starting point to grow into a real system.
     book-appointment}`) per tool resolved it. **Confirmed working
     end-to-end, 2026-08-27** — all three tools working both from Vapi's
     own dashboard test console and live on the site's chat widget.
-  - Still not synced from a real shop POS/inventory system (the
-    RepairShopr/RepairDesk question below) — someone still updates
-    counts by hand, just in Supabase's table editor instead of a TS
-    file requiring a code deploy. That's the real gap this closes:
-    "demo, hand-edited in the repo" → "real, owner-editable, no deploy."
+  - Still not synced from a real shop POS/inventory system — see the
+    RepairDesk note just below. Someone still updates counts by hand,
+    just in Supabase's table editor instead of a TS file requiring a
+    code deploy. That's the real gap this closes: "demo, hand-edited in
+    the repo" → "real, owner-editable, no deploy" — a real step forward
+    either way this eventually shakes out.
   - Repair-parts inventory (screen/battery counts feeding the Estimate
     wizard's turnaround) is still just the §4.3 idea, not built — this
     only covers the retail/resale side.
+- **The shop's real system is RepairDesk — confirmed 2026-08-27.** See
+  the note near the top of this section (§5) for the full context: the
+  owners value RepairDesk specifically for its vendor integrations, the
+  GM doesn't like the software, and which way to go (integrate with
+  RepairDesk's real API vs. keep building the independent Supabase
+  system this repo already has) is a business call, not decided here.
+  If integration is the direction chosen: RepairDesk has a real REST
+  API (per earlier research, not re-verified against their current
+  docs), and that one integration would make the retail stock above,
+  `/track`'s tickets, and §8's warehouse-workflow brainstorm all read
+  from the shop's actual system instead of Supabase in one move — worth
+  keeping in mind before investing much further in the parallel system,
+  once a direction is actually picked.
 - **`get_repair_estimate` tuned and tested against realistic caller
   phrasing, 2026-08-27.** Wrote a real test harness simulating actual
   Vapi tool-call payloads (all three documented shapes — flat, nested
@@ -996,6 +1036,18 @@ concrete fix for the gap §2.1 already flagged — "every ticket currently
 starts and stays at step 0 since there's no staff-facing way to advance
 it" — just via a scanner instead of a manual toggle. Investigation below,
 nothing built yet.
+
+**Directly affected by the RepairDesk finding in §5** (see
+`owners-current-flow.md` for the full spec): the shop already
+runs RepairDesk as their real ticketing system. A real repair-shop POS
+like RepairDesk almost certainly already tracks tickets through stages
+and very possibly already supports label/barcode printing — some of what
+8.1–8.3 sketches out may already exist there, or be buildable as a
+thinner layer on top of RepairDesk's API instead of a fully independent
+system. Worth checking what RepairDesk actually offers here before
+building any of this from scratch — this brainstorm stays useful either
+way (as its own system, or as the design for a custom front end over
+RepairDesk's real data), but which one changes the actual work a lot.
 
 ### 8.1 Scannable stage transitions — the easy version needs no scanner at all
 The cheapest real version of "scannable" doesn't need a camera-scanning
