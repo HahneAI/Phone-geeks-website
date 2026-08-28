@@ -398,10 +398,15 @@ deliberate about rather than steamrolling with a technical answer:
   hypothetical; whether to actually build it is the open call described
   up top, not a data question anymore. Supabase remains the real, shared
   booking store until that's decided. Not blocking further Tier 1 work.
-- **Real SMS confirmations** — Vapi supports sending SMS natively during
-  or after a call (no separate Twilio integration needed, confirmed via
-  Vapi's own docs). Use it for the booking confirmation and the "text me
-  when it's ready" opt-in already mocked on `/track`.
+- **Real SMS confirmations** — Vapi has a built-in `sms` default tool the
+  assistant can call during/after a call to text the caller. **Correction,
+  2026-08-28**: this still requires a configured Twilio account/`from`
+  number — "no separate Twilio integration needed" (this section's
+  original claim) was wrong; see `vapi-api-capabilities.md` §4 for the
+  full picture, including a second, unrelated "SMS Chat" feature that's
+  customer-initiated only and *not* the right one for this use case. Use
+  the `sms` tool for the booking confirmation and the "text me when it's
+  ready" opt-in already mocked on `/track`.
 - **Real email — deliberately on hold, 2026-08-27** (owner's call): not
   worth signing up for Resend or similar yet. The Estimate wizard's and
   phone agent's "we'll email you" messaging stays as copy with nothing
